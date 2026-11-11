@@ -1,4 +1,4 @@
-name: CI — eskidroid test
+name: CI
 on: [push, workflow_dispatch]
 
 jobs:
@@ -10,7 +10,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - name: Smoke test: download old APK, fix it
+      - name: Smoke test (download old APK, fix)
         run: |
           python3 eskidroid/eskidroid.py --help
           python3 eskidroid/eskidroid.py download ch.ihdg.calendarcolor --version 0.4 --fix
