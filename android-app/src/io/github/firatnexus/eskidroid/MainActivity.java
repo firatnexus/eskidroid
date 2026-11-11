@@ -1,20 +1,33 @@
 package io.github.firatnexus.eskidroid;
 
 import android.app.Activity;
-import android.app.AlertDialog;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.ContentValues;
+import android.content.Context;
 import android.content.Intent;
-import android.content.IntentSender;
-import android.content.pm.PackageInstaller;
+import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import android.provider.Settings;
-import android.widget.ArrayAdapter;
+import android.provider.MediaStore;
+import android.text.InputType;
+import android.util.TypedValue;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.ListView;
+import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -28,320 +41,660 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
+/**
+ * EskiDroid — eski Android uygulamalarını bul, indir, yamala, kur.
+ * Arayüz tamamen kod ile çizilir (XML düzen dosyası yok).
+ */
 public class MainActivity extends Activity {
 
-    private EditText query;
-    private TextView status;
-    private ListView results;
-    private final List<Object[]> current = new ArrayList<>(); // {label, action(Runnable)}
+    private static final String CHANNEL_ID = "eskidroid_dl";
+    private static final int NOTIF_ID = 1;
 
-    private static final String FDROID_INDEX = "https://f-droid.org/repo/index-v1.json";
+    // Renk paleti (koyu tema)
+    private static final int C_BG = 0xFF0E1116;
+    private static final int C_SURFACE = 0xFF1A202B;
+    private static final int C_SURFACE2 = 0xFF232B38;
+    private static final int C_TEXT = 0xFFEDF1F7;
+    private static final int C_TEXT_DIM = 0xFF98A2B3;
+    private static final int C_ACCENT = 0xFF14B8A6;   // turkuaz
+    private static final int C_ACCENT_DARK = 0xFF0E9384;
+    private static final int C_BLUE = 0xFF4F8CFF;
+    private static final int C_AMBER = 0xFFF5A623;
+
+    private final ExecutorService pool = Executors.newFixedThreadPool(1);
+    private final Map<String, View> rowViews = new HashMap<>(); // paketAdi -> satir
+
+    private LinearLayout resultList;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // Bildirim kanali (API 26+)
+        if (Build.VERSION.SDK_INT >= 26) {
+            NotificationChannel ch = new NotificationChannel(CHANNEL_ID,
+                    "İndirme durumu", NotificationManager.IMPORTANCE_LOW);
+            ch.setDescription("İndirme ve kurulum ilerlemesi");
+            ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).createNotificationChannel(ch);
+        }
+
+        setContentView(buildUi());
+    }
+
+    /* ============================ ARAYÜZ ============================ */
+
+    private View buildUi() {
+        int pad = dp(16);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        int pad = (int) (12 * getResources().getDisplayMetrics().density);
-        root.setPadding(pad, pad, pad, pad);
+        root.setBackgroundColor(C_BG);
+        root.setFitsSystemWindows(true);
 
+        // --- Başlık ---
         TextView title = new TextView(this);
-        title.setText("EskiDroid — eski Android uygulamaları");
-        title.setTextSize(18);
+        title.setText("EskiDroid");
+        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 28);
+        title.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        title.setTextColor(C_TEXT);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+        lp.leftMargin = pad; lp.topMargin = pad; lp.rightMargin = pad;
+        title.setLayoutParams(lp);
+
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Eski Android uygulamaları — ara, indir, yamala, kur");
+        subtitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        subtitle.setTextColor(C_TEXT_DIM);
+        LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(-2, -2);
+        lp2.leftMargin = pad; lp2.rightMargin = pad; lp2.bottomMargin = dp(12);
+        subtitle.setLayoutParams(lp2);
+
         root.addView(title);
+        root.addView(subtitle);
 
-        query = new EditText(this);
-        query.setHint("Uygulama ara (F-Droid arşivi)");
-        root.addView(query);
+        // --- Arama kutusu (kart) ---
+        LinearLayout searchCard = card(C_SURFACE);
+        searchCard.setPadding(pad, dp(8), pad, dp(8));
+        LinearLayout.LayoutParams scLp = new LinearLayout.LayoutParams(-1, -2);
+        scLp.leftMargin = pad; scLp.rightMargin = pad; scLp.bottomMargin = dp(10);
+        searchCard.setLayoutParams(scLp);
 
-        Button fdroidBtn = new Button(this);
-        fdroidBtn.setText("F-Droid'de ara");
-        fdroidBtn.setOnClickListener(v -> fdroidSearch(query.getText().toString().trim()));
-        root.addView(fdroidBtn);
+        final EditText query = new EditText(this);
+        query.setHint("Oyun veya uygulama adı…");
+        query.setHintTextColor(C_TEXT_DIM);
+        query.setTextColor(C_TEXT);
+        query.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        query.setInputType(InputType.TYPE_CLASS_TEXT);
+        query.setBackground(null);
+        LinearLayout.LayoutParams qLp = new LinearLayout.LayoutParams(-1, -2);
+        query.setLayoutParams(qLp);
+        searchCard.addView(query);
+        root.addView(searchCard);
 
-        Button iaBtn = new Button(this);
-        iaBtn.setText("Archive.org'da ara");
-        iaBtn.setOnClickListener(v -> iaSearch(query.getText().toString().trim()));
-        root.addView(iaBtn);
+        // --- Arama butonları ---
+        LinearLayout btnRow = new LinearLayout(this);
+        btnRow.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams brLp = new LinearLayout.LayoutParams(-1, -2);
+        brLp.leftMargin = pad; brLp.rightMargin = pad; brLp.bottomMargin = dp(8);
+        btnRow.setLayoutParams(brLp);
 
-        status = new TextView(this);
-        status.setPadding(0, pad, 0, 0);
-        status.setText("Hazır. Arşivler: F-Droid (açık kaynak) ve Archive.org.");
-        root.addView(status);
+        Button fdBtn = styledButton("F-Droid", C_ACCENT_DARK, Color.WHITE);
+        fdBtn.setOnClickListener(v -> runSearch(query.getText().toString().trim(), "fdroid"));
+        LinearLayout.LayoutParams b1 = new LinearLayout.LayoutParams(0, -2, 1f);
+        b1.rightMargin = dp(5);
+        fdBtn.setLayoutParams(b1);
 
-        results = new ListView(this);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
-        results.setLayoutParams(lp);
-        results.setOnItemClickListener((parent, view, pos, id) -> {
-            Object[] row = current.get(pos);
-            ((Runnable) row[1]).run();
+        Button iaBtn = styledButton("Archive.org", C_BLUE, Color.WHITE);
+        iaBtn.setOnClickListener(v -> runSearch(query.getText().toString().trim(), "archive"));
+        LinearLayout.LayoutParams b2 = new LinearLayout.LayoutParams(0, -2, 1f);
+        b2.leftMargin = dp(5);
+        iaBtn.setLayoutParams(b2);
+
+        btnRow.addView(fdBtn);
+        btnRow.addView(iaBtn);
+        root.addView(btnRow);
+
+        // --- Sonuç listesi ---
+        resultList = new LinearLayout(this);
+        resultList.setOrientation(LinearLayout.VERTICAL);
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.addView(resultList);
+        LinearLayout.LayoutParams sLp = new LinearLayout.LayoutParams(-1, 0, 1f);
+        scroll.setLayoutParams(sLp);
+        root.addView(scroll);
+
+        return root;
+    }
+
+    private LinearLayout card(int color) {
+        LinearLayout c = new LinearLayout(this);
+        c.setOrientation(LinearLayout.VERTICAL);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(color);
+        bg.setCornerRadius(dp(14));
+        c.setBackground(bg);
+        return c;
+    }
+
+    private Button styledButton(String text, int bgColor, int fgColor) {
+        Button b = new Button(this);
+        b.setText(text);
+        b.setTextColor(fgColor);
+        b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        b.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        b.setAllCaps(false);
+        b.setStateListAnimator(null);
+        b.setPadding(dp(14), dp(10), dp(14), dp(10));
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(bgColor);
+        bg.setCornerRadius(dp(12));
+        b.setBackground(bg);
+        return b;
+    }
+
+    private int dp(int v) {
+        return Math.round(TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics()));
+    }
+
+    /* ============================ ARAMA ============================ */
+
+    private void runSearch(String q, String source) {
+        if (q.isEmpty()) {
+            toast("Önce aramak istediğin adı yaz");
+            return;
+        }
+        resultList.removeAllViews();
+        rowViews.clear();
+        setStatus("Aranıyor: " + q + " …");
+        pool.execute(() -> {
+            try {
+                if ("fdroid".equals(source)) {
+                    searchFdroid(q);
+                } else {
+                    searchArchiveOrg(q);
+                }
+            } catch (Exception e) {
+                runOnUiThread(() -> setStatus("Hata: " + e.getMessage()));
+            }
         });
-        root.addView(results);
-
-        setContentView(root);
-
-        // Imzalama anahtari bu cihazda, ilk kullanimda uretilir (APK icinde tasimiyoruz)
-        ApkSignerUtil.setKeyDir(getFilesDir());
     }
 
-    private void post(String msg) {
-        runOnUiThread(() -> status.setText(msg));
-    }
-
-    private void setResults(List<Object[]> rows) {
+    private void searchFdroid(String q) throws Exception {
+        String url = "https://f-droid.org/en/search?count=25&fdfilter=" + java.net.URLEncoder.encode(q, "UTF-8");
+        String html = httpGetText(url);
+        // Basit HTML taraması: paket adı ve başlık
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile(
+                "href=\"/en/packages/([a-z0-9_.]+)/\"");
+        java.util.regex.Matcher m = p.matcher(html);
+        final List<String[]> found = new ArrayList<>();
+        while (m.find()) {
+            String pkg = m.group(1);
+            if (pkg.contains("q=")) continue;
+            found.add(new String[]{pkg, prettyName(pkg)});
+            if (found.size() >= 20) break;
+        }
         runOnUiThread(() -> {
-            current.clear();
-            current.addAll(rows);
-            List<String> labels = new ArrayList<>();
-            for (Object[] r : rows) labels.add((String) r[0]);
-            results.setAdapter(new ArrayAdapter<>(this,
-                    android.R.layout.simple_list_item_1, labels));
+            resultList.removeAllViews();
+            rowViews.clear();
+            if (found.isEmpty()) {
+                setStatus("Sonuç bulunamadı.");
+                return;
+            }
+            for (String[] f : found) addResultRow(f[0], f[1], "F-Droid");
         });
     }
 
-    private void bg(Runnable r) {
-        new Thread(r).start();
-    }
-
-    // ------------------------------------------------ F-Droid
-
-    private void fdroidSearch(String q) {
-        if (q.isEmpty()) {
-            toast("Önce bir şey yaz");
-            return;
+    private void searchArchiveOrg(String q) throws Exception {
+        String url = "https://archive.org/advancedsearch.php?q=" +
+                java.net.URLEncoder.encode("collection:(apkarchive) AND title:(" + q + ")", "UTF-8") +
+                "&fl[]=identifier&fl[]=title&fl[]=downloads&rows=25&output=json";
+        String json = httpGetText(url);
+        JSONObject obj = new JSONObject(json);
+        JSONArray docs = obj.getJSONObject("response").getJSONArray("docs");
+        final List<String[]> found = new ArrayList<>();
+        for (int i = 0; i < docs.length(); i++) {
+            JSONObject d = docs.getJSONObject(i);
+            found.add(new String[]{d.optString("identifier"), d.optString("title"), "archive"});
         }
-        post("F-Droid dizini hazırlanıyor...");
-        bg(() -> {
-            try {
-                File cache = new File(getCacheDir(), "fdroid-index.json");
-                if (!cache.exists() || cache.length() < 1000) {
-                    post("F-Droid dizini indiriliyor (bir kere, ~15 MB)...");
-                    download(FDROID_INDEX, cache);
-                }
-                post("Aranıyor: " + q);
-                JSONObject index = new JSONObject(readFile(cache));
-                JSONArray apps = index.getJSONArray("apps");
-                JSONObject packages = index.getJSONObject("packages");
-                List<Object[]> rows = new ArrayList<>();
-                String lq = q.toLowerCase();
-                for (int i = 0; i < apps.length(); i++) {
-                    JSONObject app = apps.getJSONObject(i);
-                    String pkg = app.optString("packageName", "");
-                    String name = app.optString("name", pkg);
-                    if (pkg.toLowerCase().contains(lq) || name.toLowerCase().contains(lq)) {
-                        String label = name + "\n" + pkg + " — sürümleri görmek için dokun";
-                        rows.add(new Object[]{label, (Runnable) () -> showFdroidVersions(pkg, name, packages)});
-                    }
-                }
-                if (rows.isEmpty()) post("Sonuç yok: " + q);
-                else post(rows.size() + " uygulama bulundu (F-Droid)");
-                setResults(rows);
-            } catch (Exception e) {
-                post("Hata: " + e.getMessage());
+        runOnUiThread(() -> {
+            resultList.removeAllViews();
+            rowViews.clear();
+            if (found.isEmpty()) {
+                setStatus("Sonuç bulunamadı.");
+                return;
             }
+            for (String[] f : found) addArchiveRow(f[0], f[1]);
         });
     }
 
-    private void showFdroidVersions(String pkg, String name, JSONObject packages) {
-        bg(() -> {
-            try {
-                JSONArray versions = packages.optJSONArray(pkg);
-                if (versions == null) {
-                    post("Sürüm bilgisi yok");
-                    return;
-                }
-                List<Object[]> rows = new ArrayList<>();
-                for (int i = 0; i < versions.length(); i++) {
-                    JSONObject v = versions.getJSONObject(i);
-                    String vname = v.optString("versionName", "?");
-                    int code = v.optInt("versionCode", 0);
-                    int target = v.optInt("targetSdkVersion", 0);
-                    String flag = target < 23 ? "  [ESKİ — düzeltilecek]" : "";
-                    String label = vname + " (code " + code + ", targetSdk " + target + ")" + flag;
-                    String file = pkg + "_" + code + ".apk";
-                    rows.add(new Object[]{label, (Runnable) () -> installFlow(
-                            "https://f-droid.org/repo/" + file, pkg + "-" + vname + ".apk")});
-                }
-                post(name + " sürümleri:");
-                setResults(rows);
-            } catch (Exception e) {
-                post("Hata: " + e.getMessage());
-            }
-        });
+    /* ============================ SONUÇ SATIRLARI ============================ */
+
+    private void addResultRow(String pkg, String name, String source) {
+        LinearLayout row = card(C_SURFACE);
+        row.setPadding(dp(14), dp(12), dp(14), dp(12));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(dp(16), dp(6), dp(16), dp(6));
+        row.setLayoutParams(lp);
+
+        TextView nameTv = new TextView(this);
+        nameTv.setText(name);
+        nameTv.setTextColor(C_TEXT);
+        nameTv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        nameTv.setTypeface(Typeface.DEFAULT_BOLD);
+
+        TextView metaTv = new TextView(this);
+        metaTv.setText(pkg);
+        metaTv.setTextColor(C_TEXT_DIM);
+        metaTv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+
+        LinearLayout right = new LinearLayout(this);
+        right.setOrientation(LinearLayout.VERTICAL);
+        right.setGravity(Gravity.END);
+
+        Button getBtn = styledButton("Sürümler", C_SURFACE2, C_ACCENT);
+        getBtn.setOnClickListener(v -> pool.execute(() -> loadVersions(pkg, name)));
+
+        LinearLayout line1 = new LinearLayout(this);
+        line1.setOrientation(LinearLayout.HORIZONTAL);
+        nameTv.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
+        right.setLayoutParams(new LinearLayout.LayoutParams(-2, -2));
+        line1.addView(nameTv);
+        line1.addView(right);
+
+        row.addView(line1);
+        row.addView(metaTv);
+
+        LinearLayout.LayoutParams btnLp = new LinearLayout.LayoutParams(-2, -2);
+        btnLp.topMargin = dp(8);
+        getBtn.setLayoutParams(btnLp);
+        right.addView(getBtn);
+
+        // durum alani
+        TextView status = new TextView(this);
+        status.setTextColor(C_AMBER);
+        status.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        status.setVisibility(View.GONE);
+        row.addView(status);
+
+        ProgressBar pb = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        pb.setVisibility(View.GONE);
+        row.addView(pb);
+
+        resultList.addView(row);
+        rowViews.put(pkg, row);
     }
 
-    // ------------------------------------------------ Archive.org
+    private void addArchiveRow(String id, String title) {
+        LinearLayout row = card(C_SURFACE);
+        row.setPadding(dp(14), dp(12), dp(14), dp(12));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(dp(16), dp(6), dp(16), dp(6));
+        row.setLayoutParams(lp);
 
-    private void iaSearch(String q) {
-        if (q.isEmpty()) {
-            toast("Önce bir şey yaz");
-            return;
-        }
-        post("Archive.org'da aranıyor: " + q);
-        bg(() -> {
-            try {
-                String u = "https://archive.org/advancedsearch.php?q="
-                        + URLEncoder.encode(
-                        "collection:(\"apkarchive\") AND title:(" + q + ")", "UTF-8")
-                        + "&rows=20&output=json&fl[]=identifier&fl[]=title";
-                JSONObject d = new JSONObject(httpGet(u));
-                JSONArray docs = d.getJSONObject("response").getJSONArray("docs");
-                List<Object[]> rows = new ArrayList<>();
-                for (int i = 0; i < docs.length(); i++) {
-                    JSONObject doc = docs.getJSONObject(i);
-                    String id = doc.getString("identifier");
-                    String title = doc.optString("title", id);
-                    rows.add(new Object[]{title + "\n" + id,
-                            (Runnable) () -> showIaFiles(id)});
-                }
-                post(docs.length() + " sonuç (Archive.org)");
-                setResults(rows);
-            } catch (Exception e) {
-                post("Hata: " + e.getMessage());
-            }
-        });
+        TextView nameTv = new TextView(this);
+        nameTv.setText(title != null && !title.isEmpty() ? title : id);
+        nameTv.setTextColor(C_TEXT);
+        nameTv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        nameTv.setTypeface(Typeface.DEFAULT_BOLD);
+
+        TextView metaTv = new TextView(this);
+        metaTv.setText("archive.org • " + id);
+        metaTv.setTextColor(C_TEXT_DIM);
+        metaTv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+
+        Button getBtn = styledButton("Sürümler", C_SURFACE2, C_BLUE);
+        getBtn.setOnClickListener(v -> pool.execute(() -> loadArchiveVersions(id, title)));
+
+        row.addView(nameTv);
+        row.addView(metaTv);
+
+        LinearLayout.LayoutParams btnLp = new LinearLayout.LayoutParams(-2, -2);
+        btnLp.topMargin = dp(8);
+        getBtn.setLayoutParams(btnLp);
+        row.addView(getBtn);
+
+        TextView status = new TextView(this);
+        status.setTextColor(C_AMBER);
+        status.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        status.setVisibility(View.GONE);
+        row.addView(status);
+
+        ProgressBar pb = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        pb.setVisibility(View.GONE);
+        row.addView(pb);
+
+        resultList.addView(row);
+        rowViews.put(id, row);
     }
 
-    private void showIaFiles(String id) {
-        post("Dosyalar alınıyor: " + id);
-        bg(() -> {
-            try {
-                JSONObject d = new JSONObject(httpGet("https://archive.org/metadata/" + id));
-                JSONArray files = d.getJSONArray("files");
-                List<Object[]> rows = new ArrayList<>();
-                for (int i = 0; i < files.length(); i++) {
-                    JSONObject f = files.getJSONObject(i);
-                    String n = f.optString("name", "");
-                    if (n.endsWith(".apk")) {
-                        long size = f.optLong("size", 0);
-                        String url = "https://archive.org/download/" + id + "/"
-                                + URLEncoder.encode(n, "UTF-8");
-                        rows.add(new Object[]{n + " (" + (size / 1048576) + " MB)",
-                                (Runnable) () -> installFlow(url, n)});
-                    }
-                }
-                if (rows.isEmpty()) post("Bu öğede APK yok");
-                else setResults(rows);
-            } catch (Exception e) {
-                post("Hata: " + e.getMessage());
-            }
-        });
-    }
+    /* ============================ SÜRÜM LİSTESİ ============================ */
 
-    // ------------------------------------------------ İndir + düzelt + kur
-
-    private void installFlow(String url, String fileName) {
-        post("İndiriliyor: " + fileName);
-        bg(() -> {
-            try {
-                File dir = new File(getExternalFilesDir(null), "eskidroid");
-                dir.mkdirs();
-                File downloaded = new File(dir, fileName);
-                download(url, downloaded);
-
-                Integer target = AndroidAppPatcher.readTargetSdk(downloaded);
-                post("İndirildi. targetSdk = " + target);
-                final File[] toInstall = {downloaded};
-                if (target != null && target < 23) {
-                    post("Eski APK — hedef SDK düzeltiliyor (28)...");
-                    File patched = new File(dir, "patched-" + fileName);
-                    AndroidAppPatcher.patch(downloaded, patched, 28);
-                    File signed = new File(dir, "signed-" + fileName);
-                    post("Yeniden imzalanıyor...");
-                    ApkSignerUtil.sign(patched, signed);
-                    toInstall[0] = signed;
-                }
-
-                post("Kurulum başlatılıyor...");
-                runOnUiThread(() -> confirmInstall(toInstall[0]));
-            } catch (Exception e) {
-                post("Hata: " + e.getMessage());
-            }
-        });
-    }
-
-    private void confirmInstall(File apk) {
-        AlertDialog.Builder b = new AlertDialog.Builder(this);
-        b.setTitle("Kurulumsun mu?");
-        b.setMessage(apk.getName() + "\nTelefonun 'bilinmeyen kaynaklardan uygulama yükleme'\niznini bu uygulama için vermeniz gerekebilir.");
-        b.setPositiveButton("Kur", (d, w) -> installApk(apk));
-        b.setNegativeButton("Vazgeç", null);
-        b.show();
-    }
-
-    private void installApk(File apk) {
+    private void loadVersions(String pkg, String name) {
+        runOnUiThread(() -> rowStatus(pkg, "Sürümler alınıyor…"));
         try {
-            PackageInstaller installer = getPackageManager().getPackageInstaller();
-            PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
-                    PackageInstaller.SessionParams.MODE_FULL_INSTALL);
-            int sessionId = installer.createSession(params);
-            PackageInstaller.Session session = installer.openSession(sessionId);
-            try (InputStream in = new FileInputStream(apk);
-                 OutputStream out = session.openWrite("app", 0, apk.length())) {
-                byte[] buf = new byte[8192];
-                int r;
-                while ((r = in.read(buf)) > 0) out.write(buf, 0, r);
-                session.fsync(out);
+            JSONObject idx = new JSONObject(httpGetText("https://f-droid.org/repo/index-v1.json"));
+            JSONObject apps = idx.getJSONObject("packages");
+            if (!apps.has(pkg)) {
+                runOnUiThread(() -> rowStatus(pkg, "F-Droid arşivinde bulunamadı."));
+                return;
             }
-            IntentSender sender = PendingIntent.getBroadcast(this, sessionId,
-                    new Intent("io.github.firatnexus.eskidroid.INSTALL_RESULT"),
-                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE).getIntentSender();
-            session.commit(sender);
-            session.close();
-            post("Kurulum isteği gönderildi; ekrandaki onayı verin.");
+            JSONArray versions = apps.getJSONArray(pkg);
+            runOnUiThread(() -> rowStatus(pkg, versions.length() + " sürüm bulundu, en yenisi seçiliyor…"));
+            // en son surumu indir
+            JSONObject latest = versions.getJSONObject(versions.length() - 1);
+            String apkName = pkg + "_" + latest.optString("versionName", "x") + ".apk";
+            String url = "https://f-droid.org/repo/" + apkName;
+            runOnUiThread(() -> rowStatus(pkg, "İndiriliyor: " + apkName));
+            runDownload(pkg, name, url, apkName);
         } catch (Exception e) {
-            post("Kurulum hatası: " + e.getMessage());
+            runOnUiThread(() -> rowStatus(pkg, "Hata: " + e.getMessage()));
+        }
+    }
+
+    private void loadArchiveVersions(String identifier, String title) {
+        runOnUiThread(() -> rowStatus(identifier, "Dosya listesi alınıyor…"));
+        try {
+            JSONObject files = new JSONObject(httpGetText(
+                    "https://archive.org/metadata/" + identifier));
+            JSONArray items = files.getJSONArray("files");
+            String chosen = null;
+            long chosenSize = 0;
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject f = items.getJSONObject(i);
+                String fn = f.optString("name", "");
+                if (fn.toLowerCase().endsWith(".apk") && f.optLong("size", 0) > chosenSize) {
+                    chosen = fn;
+                    chosenSize = f.optLong("size", 0);
+                }
+            }
+            if (chosen == null) {
+                runOnUiThread(() -> rowStatus(identifier, "Bu arşivde APK yok."));
+                return;
+            }
+            final String url = "https://archive.org/download/" + identifier + "/" +
+                    java.net.URLEncoder.encode(chosen, "UTF-8").replace("+", "%20");
+            final String chosenF = chosen;
+            final long chosenSzF = chosenSize;
+            runOnUiThread(() -> rowStatus(identifier, "İndiriliyor: " + chosenF +
+                    " (" + (chosenSzF / 1048576) + " MB)"));
+            runDownload(identifier, title != null ? title : identifier, url, chosen);
+        } catch (Exception e) {
+            runOnUiThread(() -> rowStatus(identifier, "Hata: " + e.getMessage()));
+        }
+    }
+
+    /* ============================ İNDİRME + YAMA + KURULUM ============================ */
+
+    private void runDownload(String key, String appTitle, String url, String fileName) {
+        // izinler
+        if (!ensurePermissions()) return;
+
+        File orig = new File(getCacheDir(), "orig.apk");
+        File patched = new File(getCacheDir(), "patched.apk");
+        File signed = new File(getCacheDir(), "signed.apk");
+
+        try {
+            // 1) indir
+            notifyProgress(0, fileName, "İndiriliyor…", false);
+            downloadFile(url, orig, key);
+
+            // 2) yamala
+            runOnUiThread(() -> rowStatus(key, "Yamalanıyor…"));
+            notifyProgress(-1, fileName, "Yamalanıyor…", false);
+            AndroidAppPatcher.patch(orig, patched, 28);
+
+            // 3) imzala
+            runOnUiThread(() -> rowStatus(key, "İmzalanıyor…"));
+            notifyProgress(-1, fileName, "İmzalanıyor…", false);
+            ApkSignerUtil.sign(patched, signed);
+
+            // 4) İndirilenler klasörüne kopyala
+            runOnUiThread(() -> rowStatus(key, "İndirilenler klasörüne kaydediliyor…"));
+            Uri savedUri = saveToDownloads(signed, fileName);
+            String where = savedUri != null ? "İndirilenler/EskiDroid" : "Uygulama klasörü";
+
+            runOnUiThread(() -> {
+                rowStatus(key, "Kaydedildi: " + where + "/" + fileName);
+                toast("Kaydedildi: " + where + "/" + fileName);
+            });
+            notifyProgress(100, fileName, "Tamamlandı: " + where + "/" + fileName, true);
+
+            // 5) kurulumu baslat
+            runOnUiThread(() -> promptInstall(signed, fileName));
+
+        } catch (Exception e) {
+            String msg = e.getMessage();
+            runOnUiThread(() -> {
+                rowStatus(key, "Hata: " + msg);
+                toast("Hata: " + msg);
+            });
+            notifyProgress(0, fileName, "Hata: " + msg, true);
+        }
+    }
+
+    private void downloadFile(String urlStr, File out, String key) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(urlStr).openConnection();
+        c.setInstanceFollowRedirects(true);
+        c.connect();
+        int code = c.getResponseCode();
+        if (code >= 300) throw new Exception("Sunucu " + code + " döndü");
+        long total = c.getContentLengthLong();
+        try (InputStream in = c.getInputStream(); OutputStream os = new FileOutputStream(out)) {
+            byte[] buf = new byte[16384];
+            long done = 0;
+            int n;
+            long lastUi = 0;
+            while ((n = in.read(buf)) > 0) {
+                os.write(buf, 0, n);
+                done += n;
+                if (total > 0) {
+                    int pct = (int) (done * 100 / total);
+                    long now = System.currentTimeMillis();
+                    if (now - lastUi > 300) { // ui ve bildirimi ~3 kez/sn guncelle
+                        lastUi = now;
+                        final int p = pct; final long d = done;
+                        runOnUiThread(() -> {
+                            rowProgress(key, p);
+                            rowStatus(key, "İndiriliyor %" + p + " — " + d / 1048576 + "/" + total / 1048576 + " MB");
+                        });
+                        notifyProgress(p, out.getName(), "İndiriliyor %" + p, false);
+                    }
+                }
+            }
+        }
+        runOnUiThread(() -> rowProgress(key, 100));
+    }
+
+    /** APK'yı herkesin görebileceği İndirilenler klasörüne kaydeder. */
+    private Uri saveToDownloads(File src, String name) {
+        try {
+            if (Build.VERSION.SDK_INT >= 29) {
+                // MediaStore: izin gerekmez
+                ContentValues cv = new ContentValues();
+                cv.put(MediaStore.Downloads.DISPLAY_NAME, name);
+                cv.put(MediaStore.Downloads.MIME_TYPE, "application/vnd.android.package-archive");
+                cv.put(MediaStore.Downloads.RELATIVE_PATH, "Download/EskiDroid");
+                Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+                if (uri == null) return null;
+                try (OutputStream os = getContentResolver().openOutputStream(uri);
+                     InputStream is = new FileInputStream(src)) {
+                    byte[] buf = new byte[16384];
+                    int n;
+                    while ((n = is.read(buf)) > 0) os.write(buf, 0, n);
+                }
+                return uri;
+            } else {
+                // API 21-28: klasik yolla, WRITE_EXTERNAL_STORAGE izniyle
+                File dir = new File(Environment.getExternalStoragePublicDirectory(
+                        Environment.DIRECTORY_DOWNLOADS), "EskiDroid");
+                if (!dir.exists() && !dir.mkdirs()) return null;
+                File dst = new File(dir, name);
+                try (InputStream is = new FileInputStream(src); OutputStream os = new FileOutputStream(dst)) {
+                    byte[] buf = new byte[16384];
+                    int n;
+                    while ((n = is.read(buf)) > 0) os.write(buf, 0, n);
+                }
+                return Uri.fromFile(dst);
+            }
+        } catch (Exception e) {
+            runOnUiThread(() -> toast("İndirilenler'e kaydedilemedi: " + e.getMessage()));
+            return null;
+        }
+    }
+
+    /** Kurulumu PackageInstaller'a sunar. */
+    private void promptInstall(File apk, String name) {
+        try {
             if (!getPackageManager().canRequestPackageInstalls()) {
-                startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                        Uri.parse("package:" + getPackageName())));
+                // izin yok: ayarlara yonlendir
+                toast("Kurulum izni vermen gerekiyor — ayarlar açılıyor");
+                Intent s = new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:" + getPackageName()));
+                startActivity(s);
+                return;
+            }
+            Intent in = new Intent(Intent.ACTION_INSTALL_PACKAGE);
+            in.setData(EskiDroidProvider.uriFor(apk));
+            in.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(in);
+        } catch (Exception e) {
+            toast("Kurulum başlatılamadı: " + e.getMessage());
+        }
+    }
+
+    /* ============================ İZİNLER ============================ */
+
+    private boolean ensurePermissions() {
+        List<String> want = new ArrayList<>();
+        // API 21-28: indirme icin depolama izni
+        if (Build.VERSION.SDK_INT < 29 &&
+                checkSelfPermission("android.permission.WRITE_EXTERNAL_STORAGE") != PackageManager.PERMISSION_GRANTED) {
+            want.add("android.permission.WRITE_EXTERNAL_STORAGE");
+        }
+        // API 33+: bildirim izni
+        if (Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+            want.add("android.permission.POST_NOTIFICATIONS");
+        }
+        if (want.isEmpty()) return true;
+        requestPermissions(want.toArray(new String[0]), 7);
+        toast("İzin verilince tekrar dokun");
+        return false;
+    }
+
+    /* ============================ BİLDİRİM ============================ */
+
+    private void notifyProgress(int pct, String file, String status, boolean done) {
+        try {
+            Notification.Builder b;
+            if (Build.VERSION.SDK_INT >= 26) {
+                b = new Notification.Builder(this, CHANNEL_ID);
+            } else {
+                b = new Notification.Builder(this);
+            }
+            b.setSmallIcon(android.R.drawable.stat_sys_download_done)
+                    .setContentTitle(done ? "EskiDroid" : "İndiriliyor: " + file)
+                    .setContentText(status)
+                    .setOnlyAlertOnce(true);
+            if (done) {
+                b.setProgress(0, 0, false);
+                b.setAutoCancel(true);
+            } else if (pct < 0) {
+                b.setProgress(0, 0, true); // belirsiz
+                b.setOngoing(true);
+            } else {
+                b.setProgress(100, pct, false);
+                b.setOngoing(true);
+            }
+            // Bildirime dokununca uygulama acilsin
+            PendingIntent pi = PendingIntent.getActivity(this, 0,
+                    new Intent(this, MainActivity.class), PendingIntent.FLAG_UPDATE_CURRENT);
+            b.setContentIntent(pi);
+
+            ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).notify(NOTIF_ID, b.build());
+        } catch (Exception ignored) {
+        }
+    }
+
+    /* ============================ YARDIMCILAR ============================ */
+
+    private void rowStatus(String key, String text) {
+        View v = rowViews.get(key);
+        if (v == null || !(v instanceof LinearLayout)) return;
+        LinearLayout row = (LinearLayout) v;
+        for (int i = 0; i < row.getChildCount(); i++) {
+            View c = row.getChildAt(i);
+            if (c instanceof TextView && c.getVisibility() == View.VISIBLE &&
+                    ((TextView) c).getCurrentTextColor() == C_AMBER) {
+                ((TextView) c).setText(text);
+                return;
             }
         }
     }
 
-    // ------------------------------------------------ Yardımcılar
+    private void rowProgress(String key, int pct) {
+        View v = rowViews.get(key);
+        if (v == null || !(v instanceof LinearLayout)) return;
+        LinearLayout row = (LinearLayout) v;
+        for (int i = 0; i < row.getChildCount(); i++) {
+            View c = row.getChildAt(i);
+            if (c instanceof ProgressBar) {
+                c.setVisibility(View.VISIBLE);
+                ((ProgressBar) c).setProgress(pct);
+                return;
+            }
+        }
+    }
+
+    private void setStatus(String text) {
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setTextColor(C_TEXT_DIM);
+        t.setPadding(dp(20), dp(12), dp(20), dp(12));
+        resultList.addView(t);
+    }
+
+    private String httpGetText(String urlStr) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(urlStr).openConnection();
+        c.setInstanceFollowRedirects(true);
+        c.setRequestProperty("User-Agent", "EskiDroid/1.1 (Android)");
+        int code = c.getResponseCode();
+        if (code >= 300) throw new Exception("Sunucu " + code + " döndü");
+        java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+        try (InputStream in = c.getInputStream()) {
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+        }
+        return bo.toString("UTF-8");
+    }
+
+    private static String prettyName(String pkg) {
+        String last = pkg.substring(pkg.lastIndexOf('.') + 1);
+        StringBuilder sb = new StringBuilder();
+        for (String w : last.split("_")) {
+            if (w.isEmpty()) continue;
+            sb.append(Character.toUpperCase(w.charAt(0))).append(w.substring(1)).append(' ');
+        }
+        return sb.toString().trim();
+    }
 
     private void toast(String s) {
-        Toast.makeText(this, s, Toast.LENGTH_SHORT).show();
+        runOnUiThread(() -> Toast.makeText(this, s, Toast.LENGTH_LONG).show());
     }
 
-    private String httpGet(String url) throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-        c.setRequestProperty("User-Agent", "EskiDroid/1.0");
-        c.setConnectTimeout(20000);
-        c.setReadTimeout(30000);
-        return new String(readAll(c.getInputStream()), StandardCharsets.UTF_8);
-    }
-
-    private void download(String url, File out) throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-        c.setRequestProperty("User-Agent", "EskiDroid/1.0");
-        c.setConnectTimeout(20000);
-        c.setReadTimeout(60000);
-        try (InputStream in = c.getInputStream();
-             FileOutputStream fos = new FileOutputStream(out)) {
-            byte[] buf = new byte[8192];
-            int r;
-            while ((r = in.read(buf)) > 0) fos.write(buf, 0, r);
-        }
-    }
-
-    private String readFile(File f) throws Exception {
-        return new String(readAll(new FileInputStream(f)), StandardCharsets.UTF_8);
-    }
-
-    private byte[] readAll(InputStream in) throws Exception {
-        java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
-        byte[] buf = new byte[8192];
-        int r;
-        while ((r = in.read(buf)) > 0) bos.write(buf, 0, r);
-        in.close();
-        return bos.toByteArray();
+    @Override
+    protected void onDestroy() {
+        pool.shutdownNow();
+        super.onDestroy();
     }
 }
