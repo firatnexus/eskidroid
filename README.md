@@ -9,7 +9,7 @@ Eski Android sürümlerinde yazılmış oyun ve uygulamaları (APK) yeni Android
 
 ## Kurulum (Android — uygulama, bilgisayarsız)
 
-**APK indirme: [EskiDroid-v1.0.apk](releases/EskiDroid-v1.0.apk)** (Android 7+; SHA-256: `a8a630cdb0c459af39ebc908e9327c7c63b7f957a2d901ff9565749a9722a549`)
+**APK indirme: [EskiDroid-v1.1.apk](releases/EskiDroid-v1.1.apk)** (Android 7+; SHA-256: `af19f113e163ac098729a54563f57b1f4d0dfb377c73abd4915aa8e057210b3a`)
 
 1. APK'yı indirin ve açın; "Bilinmeyen kaynaklardan uygulama yüklemeye izin verin".
 2. Uygulamayı açın, listeden bir arama yapın (F-Droid + archive.org sonuçları gelir).
