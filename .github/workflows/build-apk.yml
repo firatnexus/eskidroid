@@ -22,9 +22,8 @@ jobs:
           mv cmdline-tools latest
           echo "y" | ./latest/bin/sdkmanager --sdk_root="$HOME/android-sdk" "build-tools;34.0.0" "platforms;android-34" > /dev/null
       - name: Build EskiDroid APK
-        env:
-          ANDROID_HOME: ${{ env.HOME }}/android-sdk
         run: |
+          export ANDROID_HOME="$HOME/android-sdk"
           cd android-app
           chmod +x build.sh
           ./build.sh
