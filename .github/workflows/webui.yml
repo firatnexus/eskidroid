@@ -1,0 +1,44 @@
+name: Web UI
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Build web UI static site
+        run: |
+          python3 - <<'EOF'
+          import json, urllib.request, os
+
+          os.makedirs("docs", exist_ok=True)
+          index = json.load(urllib.request.urlopen("https://f-droid.org/repo/index-v1.json"))
+          fdroid = []
+          for app in index["apps"]:
+              pkg = app.get("packageName", "")
+              name = (app.get("localized", {}).get("en-US", {}) or {}).get("name") or pkg
+              versions = [
+                  {"version": str(v.get("versionName")), "code": v.get("versionCode"),
+                   "minSdk": v.get("minSdkVersion"), "targetSdk": v.get("targetSdkVersion")}
+                  for v in index["packages"].get(pkg, [])
+              ]
+              fdroid.append({"package": pkg, "name": name, "versions": versions})
+          json.dump(fdroid, open("docs/fdroid.json", "w", encoding="utf-8"), ensure_ascii=False)
+          print("fdroid.json:", len(fdroid), "apps")
+          EOF
+      - name: Commit generated site
+        run: |
+          cp docs/fdroid.json docs/index.html.tmp 2>/dev/null || true
+          rm -f docs/index.html.tmp
+          git add docs || true
+          git diff --quiet && git diff --cached --quiet && echo "No changes" || (git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"; git commit -m "Update fdroid.json for web UI"; git push)

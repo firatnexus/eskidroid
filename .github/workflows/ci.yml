@@ -1,0 +1,18 @@
+name: CI — eskidroid test
+on: [push, workflow_dispatch]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Smoke test: download old APK, fix it
+        run: |
+          python3 eskidroid/eskidroid.py --help
+          python3 eskidroid/eskidroid.py download ch.ihdg.calendarcolor --version 0.4 --fix
+          test -f ch.ihdg.calendarcolor_4-eskidroid.apk
+          echo OK
