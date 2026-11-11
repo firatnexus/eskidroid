@@ -1,68 +1,45 @@
-# EskiDroid — Eski Android uygulamalarını modern cihazlarda çalıştır
+# EskiDroid
 
-Eski sürümlü Android oyun ve uygulamalarını arşivden indirip, modern Android'in
-kurulum engelini (target SDK kısıtı) aşarak kurulabilir hale getiren Python CLI aracı.
+Eski Android sürümlerinde yazılmış oyun ve uygulamaları (APK) yeni Android cihazlara kurulabilir hale getiren araç.
 
-## Ne yapar
+- **Arama ve indirme**: F-Droid arşivi (eski sürümler dahil) ve Internet Archive (archive.org) APK koleksiyonu üzerinden arama, sürüm listeleme ve indirme.
+- **Otomatik yama**: Hedef APK'nın `targetSdkVersion` değerini (2.2–4.4'te yaygın olan 8–25) modern kurulum için 28'e yükseltir; Android 11+ cihazlarda "Bu uygulama bu Android sürümüyle uyumlu değil" hatasını giderir.
+- **Kendinden imzalı yeniden imzalama**: Yamalanan APK'ları bir seferlik RSA anahtarıyla imzalar.
+- **IPA ikon çıkarma**: iOS `.ipa` dosyalarının içindeki uygulama ikonlarını çıkarır.
 
-1. **`search <kelime>`** — F-Droid arşivinde uygulama arar (yüzlerce açık kaynak uygulamanın tüm eski sürümleri).
-2. **`download <paket> --version 1.2`** — seçilen eski sürümü indirir; `--fix` verirsen eski ise otomatik düzeltir.
-3. **`asearch <kelime>`** — Archive.org arşivlerinde APK arar: [APK Archive koleksiyonu](https://archive.org/details/apkarchive) (135.000+ eski sürüm), "Android Apps" koleksiyonu ve tüm arşiv genelinde. `--collection apkarchive|android|general` ile kapsamı daraltabilirsiniz.
-4. **`aversiyon <identifier>`** — Archive.org öğesindeki .apk dosyalarını listeler.
-5. **`adownload <identifier> [--file X.apk] [--fix]`** — Archive.org öğesinden APK indirir; `--fix` verirsen eski ise hemen düzeltir.
-6. **`fix <app.apk>`** — APK'nın hedef SDK'sını yükseltir ve debug sertifikasıyla yeniden imzalar.
-7. **`ipa-icons <file.ipa>`** — IPA içindeki ikon/görselleri çıkarır (APK dönüşümü DEĞİL).
+## Kurulum (Android — uygulama, bilgisayarsız)
 
-## Gereksinimler
+**APK indirme: [EskiDroid-v1.0.apk](releases/EskiDroid-v1.0.apk)** (Android 7+; SHA-256: `a8a630cdb0c459af39ebc908e9327c7c63b7f957a2d901ff9565749a9722a549`)
 
-- Python 3.8+
-- Java 8+ (`java -jar` çalışmalı)
-- `tools/` içinde `apktool.jar` (v2.9.3) ve `apksigner.jar` (uber-apk-signer 1.3.0) — bu repoda hazır.
+1. APK'yı indirin ve açın; "Bilinmeyen kaynaklardan uygulama yüklemeye izin verin".
+2. Uygulamayı açın, listeden bir arama yapın (F-Droid + archive.org sonuçları gelir).
+3. Sürüm seçin → indirin → kurulumu onaylayın. Eski APK'lar otomatik olarak yamanır ve imzalanır.
 
-## Kurulum
+Not: Uygulama kurulumu `PackageInstaller` ile yapar; cihazda Android 7 (API 24) veya üstü gerekir.
 
-```bash
-git clone https://github.com/firatnexus/eskidroid.git
-cd eskidroid
-```
+**APK nasıl derlendi?** Kaynak kod `android-app/` klasöründedir; derleme [GitHub Actions](.github/workflows/build-apk.yml) ile sunucuda yapılır (derleme betiği: `android-app/build.sh`). GitHub'ın sunucusunda [en son derleme](https://github.com/firatnexus/eskidroid/actions/workflows/build-apk.yml) başarılıysa oradan da indirilebilir.
 
-## Kullanım örnekleri
+## Kurulum (Termux — PC olmadan komut satırı)
+
+Ayrıntılı rehber: [TERMUX.md](android-app/TERMUX.md) (konsoldan çalıştırma).
+
+## CLI kullanımı
 
 ```bash
-# Arşivde ara
-python3 eskidroid/eskidroid.py search calendar
-
-# Eski sürümü indir ve otomatik düzelt
-python3 eskidroid/eskidroid.py download ch.ihdg.calendarcolor --version 0.4 --fix
-
-# Elindeki eski APK'yı düzelt
-python3 eskidroid/eskidroid.py fix OyunEski.apk
+python3 eskidroid.py search "2048"        # F-Droid'te ara
+python3 eskidroid.py aversiyon <paket-adı>  # tüm sürümleri listele
+python3 eskidroid.py adownload <arşiv-url> # archive.org'dan indir + yamala + imzala
+python3 eskidroid.py fix <dosya.apk>      # yerel APK'yı yamala ve imzala
 ```
 
-## Nasıl çalışır
+`tools/` klasöründe `apktool.jar` ve `apksigner.jar` bulunmalı.
 
-Modern Android (14+), `targetSdk < 23` olan uygulamaların kurulumunu engeller.
-`fix` komutu APK'yı `apktool` ile çözer, manifest'in `targetSdkVersion` değerini 28'e
-yükseltir, APK'yı yeniden derler ve `uber-apk-signer` ile debug sertifikasıyla
-imzalar. Sonuçta dosya eski uygulamayı, modern kurulum kısıtlamalarını geçecek
-şekilde kurabilirsiniz. Debug imzası kalıcıdır — Google Play güncellemeleri
-aynı imza gerektirdiği için bu APK'lar artık Play Store'dan güncellenemez; bu
-bilinçli bir kısıttır (orijinal imza anahtarı sadece Google Play'de bulunur).
+## Bilinen sınırlar
 
-## IPA -> APK dönüşümü NEDEN yok?
+- IPA → APK dönüşümü teknik olarak mümkün değildir; yalnızca ikon çıkarımı desteklenir.
+- 2011 öncesi, bozuk kaynak XML'li bazı arşiv APK'ları açılamaz (hata mesajı görünür).
+- Yamalama `targetSdkVersion` değerini değiştirir; davranış değişikliklerine (görünüm, izin istemleri) neden olabilir.
 
-iOS IPA dosyaları, Apple'ın ARM işlemcilerine derlenmiş makine kodu içerir; aynı
-binary Android'de çalışamaz. Bunu "çeviren" iddia eden araçlar kısıtlamalarla
-(dolgu/hile) çalışır. EskiDroid dürüst bir araç olarak bunu yapmaz; bunun yerine
-IPA içinden görselleri kurtarmak için `ipa-icons` komutu var.
+## Katkı ve lisans
 
-## Kaynaklar
-
-- [apktool](https://github.com/iBotPeaches/Apktool) (Apache 2.0)
-- [uber-apk-signer](https://github.com/patrickfav/uber-apk-signer) (Apache 2.0)
-- [F-Droid](https://f-droid.org) (açık kaynak arşiv)
-
-## Lisans
-
-Bu araç MIT lisansıyla yayımlanır. APK'lar üzerinde yaptığınız değişikliklerin
-yasal durumu, kaynağın lisansına bağlıdır; yalnızca hakkınız olan dosyaları kullanın.
+MIT — bakınız [LICENSE](LICENSE).
