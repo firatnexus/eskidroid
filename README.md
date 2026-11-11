@@ -7,8 +7,11 @@ kurulum engelini (target SDK kısıtı) aşarak kurulabilir hale getiren Python 
 
 1. **`search <kelime>`** — F-Droid arşivinde uygulama arar (yüzlerce açık kaynak uygulamanın tüm eski sürümleri).
 2. **`download <paket> --version 1.2`** — seçilen eski sürümü indirir; `--fix` verirsen eski ise otomatik düzeltir.
-3. **`fix <app.apk>`** — APK'nın hedef SDK'sını yükseltir ve debug sertifikasıyla yeniden imzalar.
-4. **`ipa-icons <file.ipa>`** — IPA içindeki ikon/görselleri çıkarır (APK dönüşümü DEĞİL).
+3. **`asearch <kelime>`** — Archive.org arşivlerinde APK arar: [APK Archive koleksiyonu](https://archive.org/details/apkarchive) (135.000+ eski sürüm), "Android Apps" koleksiyonu ve tüm arşiv genelinde. `--collection apkarchive|android|general` ile kapsamı daraltabilirsiniz.
+4. **`aversiyon <identifier>`** — Archive.org öğesindeki .apk dosyalarını listeler.
+5. **`adownload <identifier> [--file X.apk] [--fix]`** — Archive.org öğesinden APK indirir; `--fix` verirsen eski ise hemen düzeltir.
+6. **`fix <app.apk>`** — APK'nın hedef SDK'sını yükseltir ve debug sertifikasıyla yeniden imzalar.
+7. **`ipa-icons <file.ipa>`** — IPA içindeki ikon/görselleri çıkarır (APK dönüşümü DEĞİL).
 
 ## Gereksinimler
 
