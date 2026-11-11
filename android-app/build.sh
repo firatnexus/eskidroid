@@ -34,7 +34,7 @@ mkdir -p "$OUT/gen"
 # 2) java
 mkdir -p "$OUT/obj"
 find src "$OUT/gen" -name '*.java' > "$OUT/sources.txt"
-javac --release 11 -classpath "$ANDROID_JAR:$OUT/libs/arsclib.jar:$OUT/libs/apksig.jar" \
+javac --release 11 -encoding UTF-8 -classpath "$ANDROID_JAR:$OUT/libs/arsclib.jar:$OUT/libs/apksig.jar" \
   -d "$OUT/obj" @"$OUT/sources.txt"
 
 # 3) dex
