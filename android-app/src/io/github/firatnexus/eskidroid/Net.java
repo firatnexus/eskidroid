@@ -66,13 +66,14 @@ public final class Net {
         }
     }
 
+    /** Bağlantı durumu belirlenemezse true döner: emin değilsek isteği yine de dene. */
     public static boolean online(Context ctx) {
         try {
             ConnectivityManager cm = (ConnectivityManager) ctx.getSystemService(Context.CONNECTIVITY_SERVICE);
             NetworkInfo ni = cm != null ? cm.getActiveNetworkInfo() : null;
-            return ni != null && ni.isConnected();
+            return ni == null || ni.isConnected(); // ni null → emin değiliz → dene
         } catch (Exception e) {
-            return false;
+            return true; // izin/sistem hatası → aramayı engelleme, isteği dene
         }
     }
 }
