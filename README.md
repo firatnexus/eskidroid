@@ -11,9 +11,11 @@ Eski Android sürümlerinde yazılmış oyun ve uygulamaları (APK) yeni Android
 
 ## Kurulum (Android — uygulama, bilgisayarsız)
 
-**APK indirme: [EskiDroid-v1.2.apk](releases/EskiDroid-v1.2.apk)** (Android 7+; SHA-256: `f53ee6311fe6abeb9ffdb470d77afaf9bee841d0e3cba2516869276f879dedad`)
+**APK indirme: [EskiDroid-v1.3.apk](releases/EskiDroid-v1.3.apk)** (Android 7+; SHA-256: `ba784a36f06166cb7244c55d0a6346c96f44cffa6162d608b4ce58275ee223c6`)
 
-Önceki sürümler: [v1.1](releases/EskiDroid-v1.1.apk) (SHA-256: `af19f113e163ac098729a54563f57b1f4d0dfb377c73abd4915aa8e057210b3a`), [v1.0](releases/EskiDroid-v1.0.apk)
+v1.3: `ACCESS_NETWORK_STATE` izni eklendi ("internet bağlantısı yok" hatası giderildi), `versionCode`/`versionName` manifest köküne taşındı ("Sürüm: null" hatası giderildi), bağlantı durumu belirlenemezse arama artık engellenmez.
+
+Önceki sürümler: [v1.2](releases/EskiDroid-v1.2.apk) (SHA-256: `f53ee6311fe6abeb9ffdb470d77afaf9bee841d0e3cba2516869276f879dedad`), [v1.1](releases/EskiDroid-v1.1.apk) (SHA-256: `af19f113e163ac098729a54563f57b1f4d0dfb377c73abd4915aa8e057210b3a`), [v1.0](releases/EskiDroid-v1.0.apk)
 
 1. APK'yı indirin ve açın; "Bilinmeyen kaynaklardan uygulama yüklemeye izin verin".
 2. Uygulamayı açın, listeden bir arama yapın (F-Droid + archive.org sonuçları gelir).
