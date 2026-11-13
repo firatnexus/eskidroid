@@ -15,23 +15,18 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.text.InputType;
-import android.util.TypedValue;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
-
-import java.net.URLEncoder;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.Map;
 
 /**
- * Ara ekranı: başlık, arama pili (✕ temizleme, IME arama), kaynak çipleri
- * (Tümü / F-Droid / Archive.org), sonuç kartları (ikon, temiz ad, sürüm pili,
- * kaynak, güvenilmez-kaynak işareti).
+ * Ara ekranı: başlık, arama kutusu, kaynak çipleri (Tümü / F-Droid /
+ * Internet Archive / GitHub — seçili çipte sonuç sayısı), kaynak başına ayrı
+ * yükleniyor göstergesi, hata mesajı (diğer kaynaklar sürer), sonuç kartları
+ * (uygulama adına göre gruplu, kaynak rozetli, alaka sıralı) ve
+ * archive.org için "daha fazla yükle" sayfalama.
  */
 public final class SearchScreen {
 
@@ -42,6 +37,17 @@ public final class SearchScreen {
     private String source = "all";
     private final List<TextView> chipLabels = new ArrayList<>();
     private final List<View> chipLines = new ArrayList<>();
+    private final List<String> chipKeys = new ArrayList<>();
+
+    // kaynak durumu
+    private final Map<String, Integer> counts = new LinkedHashMap<>();
+    private final Map<String, Boolean> loading = new LinkedHashMap<>();
+    private final Map<String, String> errors = new LinkedHashMap<>();
+
+    // birleşik gruplar (isim → grup)
+    private final Map<String, AppGroup> groups = new LinkedHashMap<>();
+    private String lastQuery = "";
+    private int archivePage = 0;
 
     public SearchScreen(MainActivity main) {
         this.main = main;
@@ -50,14 +56,14 @@ public final class SearchScreen {
         root.setBackgroundColor(Ui.CANVAS);
 
         // Başlık
-        TextView title = Ui.text(main, "EskiDroid", Ui.WHITE, 26, 2);
+        TextView title = Ui.text(main, "EskiDroid", Ui.INK, 26, 2);
         title.setLetterSpacing(-0.04f);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
         lp.setMargins(Ui.dp(20), Ui.dp(16), Ui.dp(20), 0);
         title.setLayoutParams(lp);
         root.addView(title);
 
-        TextView sub = Ui.text(main, "Eski Android uygulamaları — ara, indir, yamala, kur", Ui.GRAPHITE, 13, 0);
+        TextView sub = Ui.text(main, L.s(R.string.search_subtitle), Ui.FOG, 13, 0);
         sub.setSingleLine(true);
         sub.setEllipsize(TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(-1, -2);
@@ -65,33 +71,34 @@ public final class SearchScreen {
         sub.setLayoutParams(lp2);
         root.addView(sub);
 
-        // Arama kutusu: #131313 pil, ikon + alan + temizle
+        // Arama kutusu: Paper yüzey, 6dp köşe (Things giriş alanı)
         LinearLayout box = new LinearLayout(main);
         box.setOrientation(LinearLayout.HORIZONTAL);
         box.setGravity(Gravity.CENTER_VERTICAL);
         GradientDrawable g = new GradientDrawable();
         g.setColor(Ui.ELEVATED);
-        g.setCornerRadius(Ui.dp(99));
+        g.setCornerRadius(Ui.dp(6));
+        g.setStroke(Math.max(1, Ui.dp(1)), Ui.HAIRLINE);
         box.setBackground(g);
-        box.setPadding(Ui.dp(16), Ui.dp(4), Ui.dp(8), Ui.dp(4));
+        box.setPadding(Ui.dp(14), Ui.dp(4), Ui.dp(8), Ui.dp(4));
         LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(-1, Ui.dp(48));
         blp.setMargins(Ui.dp(16), 0, Ui.dp(16), Ui.dp(12));
         box.setLayoutParams(blp);
 
         ImageView searchIcon = new ImageView(main);
-        searchIcon.setImageDrawable(Icons.search(main, Ui.GRAPHITE));
-        searchIcon.setContentDescription("Ara");
+        searchIcon.setImageDrawable(Icons.search(main, Ui.ASH));
+        searchIcon.setContentDescription(L.s(R.string.tab_search));
         LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(Ui.dp(24), Ui.dp(24));
         ilp.rightMargin = Ui.dp(10);
         searchIcon.setLayoutParams(ilp);
         box.addView(searchIcon);
 
         query = new EditText(main);
-        query.setHint("Oyun veya uygulama adı…");
-        query.setHintTextColor(Ui.GRAPHITE);
-        query.setTextColor(Ui.WHITE);
-        query.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-        query.setInputType(InputType.TYPE_CLASS_TEXT);
+        query.setHint(L.s(R.string.search_hint));
+        query.setHintTextColor(Ui.FOG);
+        query.setTextColor(Ui.INK);
+        query.setTextSize(16);
+        query.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
         query.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
         query.setBackground(null);
         query.setLayoutParams(new LinearLayout.LayoutParams(0, -1, 1f));
@@ -105,8 +112,8 @@ public final class SearchScreen {
         box.addView(query);
 
         final ImageView clear = new ImageView(main);
-        clear.setImageDrawable(Icons.close(main, Ui.GRAPHITE));
-        clear.setContentDescription("Aramayı temizle");
+        clear.setImageDrawable(Icons.close(main, Ui.FOG));
+        clear.setContentDescription(L.s(R.string.clear_search));
         clear.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(40), Ui.dp(40)));
         clear.setVisibility(View.GONE);
         clear.setOnClickListener(v -> query.setText(""));
@@ -127,7 +134,7 @@ public final class SearchScreen {
         });
         root.addView(box);
 
-        // Kaynak çipleri (ghost pil; etkin = beyaz yazı + 1dp mavi alt çizgi)
+        // Kaynak çipleri: Tümü / F-Droid / Internet Archive / GitHub
         HorizontalScrollView hs = new HorizontalScrollView(main);
         hs.setFillViewport(true);
         hs.setHorizontalScrollBarEnabled(false);
@@ -137,9 +144,10 @@ public final class SearchScreen {
         hs.addView(chips);
         LinearLayout.LayoutParams hlp = new LinearLayout.LayoutParams(-1, -2);
         hs.setLayoutParams(hlp);
-        addChip(chips, "Tümü", "all");
+        addChip(chips, L.s(R.string.filter_all), "all");
         addChip(chips, "F-Droid", "fdroid");
-        addChip(chips, "Archive.org", "archive");
+        addChip(chips, L.s(R.string.filter_archive), "archive");
+        addChip(chips, "GitHub", "github");
         root.addView(hs);
         updateChips();
 
@@ -169,7 +177,7 @@ public final class SearchScreen {
         col.setOrientation(LinearLayout.VERTICAL);
         col.setGravity(Gravity.CENTER_HORIZONTAL);
         col.setPadding(Ui.dp(12), Ui.dp(6), Ui.dp(12), Ui.dp(2));
-        TextView t = Ui.text(main, label, Ui.GRAPHITE, 13, 1);
+        TextView t = Ui.text(main, label, Ui.FOG, 13, 1);
         col.addView(t);
         View line = new View(main);
         line.setLayoutParams(new LinearLayout.LayoutParams(-1, Ui.dp(2)));
@@ -179,6 +187,7 @@ public final class SearchScreen {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
         col.setLayoutParams(lp);
         col.setOnClickListener(v -> {
+            UiFx.tap(main);
             source = value;
             updateChips();
             runSearch();
@@ -186,14 +195,31 @@ public final class SearchScreen {
         parent.addView(col);
         chipLabels.add(t);
         chipLines.add(line);
+        chipKeys.add(value);
     }
 
     private void updateChips() {
-        String[] vals = {"all", "fdroid", "archive"};
         for (int i = 0; i < chipLabels.size(); i++) {
-            boolean active = vals[i].equals(source);
-            chipLabels.get(i).setTextColor(active ? Ui.WHITE : Ui.GRAPHITE);
+            String key = chipKeys.get(i);
+            boolean active = key.equals(source);
+            Integer c = counts.get(key);
+            String label = baseChipLabel(key);
+            chipLabels.get(i).setText(active && c != null ? label + " (" + c + ")" : label);
+            chipLabels.get(i).setTextColor(active ? Ui.INK : Ui.FOG);
             chipLines.get(i).setVisibility(active ? View.VISIBLE : View.INVISIBLE);
+        }
+    }
+
+    private String baseChipLabel(String key) {
+        switch (key) {
+            case "fdroid":
+                return "F-Droid";
+            case "archive":
+                return L.s(R.string.filter_archive);
+            case "github":
+                return "GitHub";
+            default:
+                return L.s(R.string.filter_all);
         }
     }
 
@@ -202,138 +228,152 @@ public final class SearchScreen {
     private void runSearch() {
         final String q = query.getText().toString().trim();
         if (q.isEmpty()) {
-            Toast.makeText(main, "Önce aramak istediğin adı yaz", Toast.LENGTH_SHORT).show();
+            Toast.makeText(main, L.s(R.string.type_first), Toast.LENGTH_SHORT).show();
             return;
         }
         if (!Net.online(main)) {
             renderOffline();
             return;
         }
-        renderSkeleton();
+        lastQuery = q;
+        archivePage = 0;
+        groups.clear();
+        counts.clear();
+        errors.clear();
+        loading.put(Sources.FDROID, !"archive".equals(source) && !"github".equals(source));
+        loading.put(Sources.ARCHIVE, !"fdroid".equals(source) && !"github".equals(source));
+        loading.put(Sources.GITHUB, !"fdroid".equals(source) && !"archive".equals(source));
+        renderLoading();
         final String src = source;
-        Net.POOL.execute(() -> {
-            List<SearchItem> found = new ArrayList<>();
-            if (!"archive".equals(src)) {
-                try {
-                    found.addAll(searchFdroid(q));
-                } catch (Exception ignored) {
-                }
-            }
-            if (!"fdroid".equals(src)) {
-                try {
-                    found.addAll(searchArchive(q));
-                } catch (Exception ignored) {
-                }
-            }
-            final List<SearchItem> f = found;
-            main.runOnUiThread(() -> renderResults(f, q));
+
+        if (loading.get(Sources.FDROID)) Net.POOL.execute(() -> {
+            Sources.SourceResult r = Sources.searchFdroid(q);
+            main.runOnUiThread(() -> onSourceDone(r));
+        });
+        if (loading.get(Sources.ARCHIVE)) Net.POOL.execute(() -> {
+            Sources.SourceResult r = Sources.searchArchive(q, 0);
+            main.runOnUiThread(() -> onSourceDone(r));
+        });
+        if (loading.get(Sources.GITHUB)) Net.POOL.execute(() -> {
+            Sources.SourceResult r = Sources.searchGithub(q);
+            main.runOnUiThread(() -> onSourceDone(r));
         });
     }
 
-    private static List<SearchItem> searchFdroid(String q) throws Exception {
-        String url = "https://f-droid.org/en/search?count=25&fdfilter=" + URLEncoder.encode(q, "UTF-8");
-        String html = Net.get(url);
-        Pattern block = Pattern.compile(
-                "<a class=\"package-header\" href=\"/en/packages/([a-zA-Z0-9_.]+)/\">(.*?)</a>",
-                Pattern.DOTALL);
-        Matcher m = block.matcher(html);
-        List<SearchItem> out = new ArrayList<>();
-        while (m.find() && out.size() < 20) {
-            SearchItem it = new SearchItem();
-            it.id = m.group(1);
-            it.source = "fdroid";
-            String inner = m.group(2);
-            Matcher img = Pattern.compile("src=\"([^\"]+)\"").matcher(inner);
-            if (img.find()) it.iconUrl = img.group(1);
-            Matcher nm = Pattern.compile("<h4 class=\"package-name\">(.*?)</h4>", Pattern.DOTALL).matcher(inner);
-            if (nm.find()) it.name = stripTags(nm.group(1));
-            Matcher sm = Pattern.compile("<span class=\"package-summary\">(.*?)</span>", Pattern.DOTALL).matcher(inner);
-            if (sm.find()) it.summary = stripTags(sm.group(1));
-            if (it.name == null || it.name.isEmpty()) it.name = NameUtil.prettyPkg(it.id);
-            out.add(it);
+    /** Bir kaynağın sonucu geldi: diğerlerinden bağımsız işlenir. */
+    private void onSourceDone(Sources.SourceResult r) {
+        loading.put(r.source, false);
+        if (r.error != null) errors.put(r.source, r.error);
+        int n = 0;
+        for (SearchItem it : r.items) {
+            if (it.spam && !"archive".equals(r.source)) continue;
+            AppGroup grp = groups.get(it.key());
+            if (grp == null) {
+                grp = new AppGroup(it.key(), it.name);
+                groups.put(it.key(), grp);
+            }
+            grp.items.add(it);
+            if (grp.summary == null && it.summary != null) grp.summary = it.summary;
+            if (grp.iconUrl == null && it.iconUrl != null) grp.iconUrl = it.iconUrl;
+            n++;
         }
-        return out;
+        counts.put(r.source, n);
+        renderResults();
     }
 
-    private static String stripTags(String s) {
-        String r = s.replaceAll("<[^>]+>", "");
-        r = r.replace("&amp;", "&")
-                .replace("&lt;", "<").replace("&gt;", ">")
-                .replace("&quot;", "\"")
-                .replace("&#39;", "'")
-                .replace("&nbsp;", " ");
-        r = r.trim();
-        return r.replaceAll("\\s+", " ");
+    /** archive.org: kaydırınca daha fazla yükle. */
+    private void loadMoreArchive() {
+        if (!loading.containsKey(Sources.ARCHIVE) || Boolean.TRUE.equals(loading.get(Sources.ARCHIVE))) {
+            return;
+        }
+        loading.put(Sources.ARCHIVE, true);
+        TextView more = findMoreButton();
+        if (more != null) more.setText(L.s(R.string.loading_more));
+        final int page = ++archivePage;
+        Net.POOL.execute(() -> {
+            Sources.SourceResult r = Sources.searchArchive(lastQuery, page);
+            main.runOnUiThread(() -> {
+                loading.put(Sources.ARCHIVE, false);
+                if (r.error != null) errors.put(Sources.ARCHIVE, r.error);
+                for (SearchItem it : r.items) {
+                    AppGroup grp = groups.get(it.key());
+                    if (grp == null) {
+                        grp = new AppGroup(it.key(), it.name);
+                        groups.put(it.key(), grp);
+                    } else {
+                        // aynı öğe zaten var mı?
+                        boolean dup = false;
+                        for (SearchItem x : grp.items) if (x.id.equals(it.id)) dup = true;
+                        if (dup) continue;
+                    }
+                    grp.items.add(it);
+                    if (grp.iconUrl == null && it.iconUrl != null) grp.iconUrl = it.iconUrl;
+                }
+                renderResults();
+            });
+        });
     }
 
-    private static List<SearchItem> searchArchive(String q) throws Exception {
-        String url = "https://archive.org/advancedsearch.php?q=" +
-                URLEncoder.encode("collection:(apkarchive) AND title:(" + q + ")", "UTF-8") +
-                "&fl[]=identifier&fl[]=title&fl[]=downloads&rows=25&sort[]=downloads+desc&output=json";
-        JSONObject obj = new JSONObject(Net.get(url));
-        JSONArray docs = obj.getJSONObject("response").getJSONArray("docs");
-        List<SearchItem> out = new ArrayList<>();
-        for (int i = 0; i < docs.length(); i++) {
-            JSONObject d = docs.getJSONObject(i);
-            SearchItem it = new SearchItem();
-            it.id = d.optString("identifier");
-            String title = d.optString("title");
-            String[] nv = NameUtil.clean(title.isEmpty() ? it.id : title);
-            it.name = nv[0];
-            it.version = nv[1];
-            it.source = "archive";
-            it.spam = NameUtil.spam(it.id, title);
-            it.iconUrl = "https://archive.org/services/img/" + it.id;
-            out.add(it);
+    private TextView findMoreButton() {
+        for (int i = results.getChildCount() - 1; i >= 0; i--) {
+            View v = results.getChildAt(i);
+            if (v instanceof TextView && "more".equals(v.getTag())) return (TextView) v;
         }
-        // Spam görünümlü kaynaklar alta atılır
-        Collections.sort(out, (a, b) -> Boolean.compare(a.spam, b.spam));
-        return out;
+        return null;
     }
 
     // ============================ durumlar ============================
 
     private void renderEmpty() {
         results.removeAllViews();
-        TextView t = Ui.text(main, "Bir oyun ya da uygulama adı yaz ve ara.\nSonuçlar F-Droid ve archive.org'tan gelir.",
-                Ui.GRAPHITE, 14, 0);
+        TextView t = Ui.text(main, L.s(R.string.search_empty), Ui.FOG, 14, 0);
         t.setPadding(Ui.dp(20), Ui.dp(24), Ui.dp(20), 0);
         results.addView(t);
     }
 
-    private void renderSkeleton() {
+    private void renderLoading() {
         results.removeAllViews();
-        for (int i = 0; i < 5; i++) {
+        updateChips();
+        // kaynak başına ayrı yükleniyor göstergesi
+        List<View> sk = new ArrayList<>();
+        for (Map.Entry<String, Boolean> e : loading.entrySet()) {
+            if (!Boolean.TRUE.equals(e.getValue())) continue;
+            LinearLayout row = new LinearLayout(main);
+            row.setOrientation(LinearLayout.VERTICAL);
+            TextView label = Ui.text(main, baseChipLabel(e.getKey()) + " — " + L.s(R.string.searching), Ui.FOG, 12, 1);
+            row.addView(label);
+            View bar = Ui.skeleton(main, 14);
+            LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(-1, Ui.dp(8));
+            blp.topMargin = Ui.dp(6);
+            bar.setLayoutParams(blp);
+            row.addView(bar);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            lp.setMargins(Ui.dp(16), Ui.dp(8), Ui.dp(16), Ui.dp(4));
+            row.setLayoutParams(lp);
+            results.addView(row);
+            sk.add(bar);
+        }
+        for (int i = 0; i < 3 && sk.size() < 6; i++) {
             View v = Ui.skeleton(main, 72);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
             lp.setMargins(Ui.dp(12), Ui.dp(6), Ui.dp(12), Ui.dp(6));
             v.setLayoutParams(lp);
             results.addView(v);
+            sk.add(v);
         }
-        TextView st = Ui.text(main, "Aranıyor…", Ui.GRAPHITE, 12, 0);
-        st.setPadding(Ui.dp(20), Ui.dp(8), Ui.dp(20), 0);
-        results.addView(st);
+        UiFx.shimmerAll(main, sk);
     }
 
     private void renderOffline() {
         results.removeAllViews();
-        TextView t = Ui.text(main, "İnternet bağlantısı yok.\nDepo sekmesi çevrimdışı çalışır.",
-                Ui.GRAPHITE, 14, 0);
-        t.setPadding(Ui.dp(20), Ui.dp(24), Ui.dp(20), Ui.dp(12));
-        results.addView(t);
-        addRetry();
-    }
-
-    private void renderError(String msg) {
-        results.removeAllViews();
-        TextView t = Ui.text(main, "Hata: " + msg, Ui.GRAPHITE, 14, 0);
+        TextView t = Ui.text(main, L.s(R.string.offline), Ui.FOG, 14, 0);
         t.setPadding(Ui.dp(20), Ui.dp(24), Ui.dp(20), Ui.dp(12));
         results.addView(t);
         addRetry();
     }
 
     private void addRetry() {
-        TextView retry = Ui.ghostPill(main, "Tekrar dene");
+        TextView retry = Ui.ghostButton(main, L.s(R.string.retry));
         retry.setOnClickListener(v -> runSearch());
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
         lp.leftMargin = Ui.dp(20);
@@ -341,23 +381,81 @@ public final class SearchScreen {
         results.addView(retry);
     }
 
-    private void renderResults(List<SearchItem> found, String q) {
+    /** Sonuçlar: gruplar alaka sırasıyla; kaynak hataları küçük mesajla. */
+    private void renderResults() {
         results.removeAllViews();
-        if (found.isEmpty()) {
-            TextView t = Ui.text(main, "Sonuç bulunamadı: “" + q + "”", Ui.GRAPHITE, 14, 0);
+        updateChips();
+
+        // hata mesajları (diğer kaynaklar sürer)
+        for (Map.Entry<String, String> e : errors.entrySet()) {
+            if (Boolean.TRUE.equals(loading.get(e.getKey()))) continue;
+            TextView err = Ui.text(main,
+                    baseChipLabel(e.getKey()) + ": " + L.s(R.string.source_error), Ui.EMBER, 11, 0);
+            err.setPadding(Ui.dp(20), Ui.dp(4), Ui.dp(20), 0);
+            results.addView(err);
+        }
+
+        // seçili kaynağa göre filtrele
+        List<AppGroup> shown = new ArrayList<>();
+        for (AppGroup grp : groups.values()) {
+            if (!"all".equals(source)) {
+                boolean has = false;
+                for (SearchItem it : grp.items) if (it.source.equals(source)) has = true;
+                if (!has) continue;
+            }
+            shown.add(grp);
+        }
+
+        // alaka sıralaması
+        final String q = lastQuery;
+        java.util.Collections.sort(shown, (a, b) -> Double.compare(b.score(q), a.score(q)));
+
+        if (shown.isEmpty() && allDone()) {
+            TextView t = Ui.text(main, L.s(R.string.no_results, lastQuery), Ui.FOG, 14, 0);
             t.setPadding(Ui.dp(20), Ui.dp(24), Ui.dp(20), 0);
             results.addView(t);
             return;
         }
-        TextView count = Ui.text(main, found.size() + " sonuç", Ui.GRAPHITE, 12, 0);
+
+        TextView count = Ui.text(main, L.s(R.string.result_count, shown.size()), Ui.FOG, 12, 0);
         count.setPadding(Ui.dp(20), Ui.dp(4), Ui.dp(20), Ui.dp(4));
         results.addView(count);
-        for (SearchItem it : found) results.addView(card(it));
+
+        List<View> cards = new ArrayList<>();
+        for (AppGroup grp : shown) {
+            View c = card(grp);
+            results.addView(c);
+            cards.add(c);
+        }
+
+        // archive.org sayfalama butonu
+        if (("all".equals(source) || "archive".equals(source))
+                && !Boolean.TRUE.equals(loading.get(Sources.ARCHIVE))
+                && counts.containsKey(Sources.ARCHIVE)) {
+            TextView more = Ui.ghostButton(main, L.s(R.string.load_more_archive));
+            more.setTag("more");
+            UiFx.press(more);
+            more.setOnClickListener(v -> {
+                UiFx.tap(main);
+                loadMoreArchive();
+            });
+            LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(-1, -2);
+            mlp.setMargins(Ui.dp(12), Ui.dp(6), Ui.dp(12), Ui.dp(6));
+            more.setLayoutParams(mlp);
+            results.addView(more);
+        }
+        UiFx.stagger(main, cards);
+    }
+
+    private boolean allDone() {
+        for (Boolean b : loading.values()) if (Boolean.TRUE.equals(b)) return false;
+        return true;
     }
 
     // ============================ sonuç kartı ============================
 
-    private View card(final SearchItem it) {
+    /** Grup kartı: ikon, ad, kaynak rozetleri (F-Droid / Archive / GitHub), özet. */
+    private View card(final AppGroup grp) {
         LinearLayout card = Ui.card(main);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(Ui.dp(12), Ui.dp(6), Ui.dp(12), Ui.dp(6));
@@ -367,9 +465,9 @@ public final class SearchScreen {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
 
-        ImageView icon = Ui.circularImage(main, 48);
-        icon.setContentDescription(it.name);
-        ImageLoader.get(main).load(it.iconUrl, 48, icon, it.name);
+        ImageView icon = Ui.appIcon(main, 48);
+        icon.setContentDescription(grp.name);
+        ImageLoader.get(main).load(grp.iconUrl, 48, icon, grp.name);
         row.addView(icon);
 
         LinearLayout mid = new LinearLayout(main);
@@ -377,30 +475,22 @@ public final class SearchScreen {
         mid.setPadding(Ui.dp(12), 0, Ui.dp(8), 0);
         mid.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
 
-        LinearLayout nameRow = new LinearLayout(main);
-        nameRow.setOrientation(LinearLayout.HORIZONTAL);
-        nameRow.setGravity(Gravity.CENTER_VERTICAL);
-        TextView name = Ui.text(main, it.name, Ui.WHITE, 15, 1);
+        TextView name = Ui.text(main, grp.name, Ui.INK, 15, 1);
         name.setSingleLine(true);
         name.setEllipsize(TextUtils.TruncateAt.END);
-        name.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
-        nameRow.addView(name);
-        if (it.version != null && !it.version.isEmpty()) {
-            TextView vp = Ui.miniPill(main, it.version, Ui.MIST, Ui.SMOKE);
-            LinearLayout.LayoutParams vlp = new LinearLayout.LayoutParams(-2, -2);
-            vlp.leftMargin = Ui.dp(8);
-            vp.setLayoutParams(vlp);
-            nameRow.addView(vp);
+        mid.addView(name);
+
+        // kaynak rozetleri
+        LinearLayout badges = new LinearLayout(main);
+        badges.setOrientation(LinearLayout.HORIZONTAL);
+        badges.setPadding(0, Ui.dp(4), 0, 0);
+        for (String src : grp.sources()) {
+            badges.addView(margin(Ui.badge(main, SearchItem.sourceLabel(src), Ui.BLUE, Ui.BLUE), 0, 0, 6, 0));
         }
-        mid.addView(nameRow);
+        mid.addView(badges);
 
-        TextView src = Ui.text(main, it.sourceLabel(), Ui.GRAPHITE, 12, 0);
-        src.setSingleLine(true);
-        src.setEllipsize(TextUtils.TruncateAt.END);
-        mid.addView(src);
-
-        if (it.summary != null && !it.summary.isEmpty()) {
-            TextView sm = Ui.text(main, it.summary, Ui.MIST, 12, 0);
+        if (grp.summary != null && !grp.summary.isEmpty()) {
+            TextView sm = Ui.text(main, grp.summary, Ui.FOG, 12, 0);
             sm.setMaxLines(2);
             sm.setEllipsize(TextUtils.TruncateAt.END);
             mid.addView(sm);
@@ -408,19 +498,51 @@ public final class SearchScreen {
         row.addView(mid);
 
         ImageView chev = new ImageView(main);
-        chev.setImageDrawable(Icons.chevronRight(main, Ui.MIST));
-        chev.setContentDescription("Sürümler");
+        chev.setImageDrawable(Icons.chevronRight(main, Ui.ASH));
+        chev.setContentDescription(L.s(R.string.versions));
         row.addView(chev);
 
         card.addView(row);
-        if (it.spam) {
-            TextView warn = Ui.miniPill(main, "Güvenilmez kaynak", Ui.EMBER, Ui.EMBER);
+
+        // Spam işaretli arşiv öğeleri küçük uyarı
+        boolean anySpam = false;
+        for (SearchItem it : grp.items) if (it.spam) anySpam = true;
+        if (anySpam) {
+            TextView warn = Ui.badge(main, L.s(R.string.untrusted_source), Ui.EMBER, Ui.EMBER);
             LinearLayout.LayoutParams wlp = new LinearLayout.LayoutParams(-2, -2);
             wlp.topMargin = Ui.dp(8);
             warn.setLayoutParams(wlp);
             card.addView(warn);
         }
-        card.setOnClickListener(v -> main.openVersions(it));
+
+        // grup içindeki arşiv sürümü (varsa) küçük pil
+        String ver = null;
+        for (SearchItem it : grp.items) {
+            if (it.version != null && !it.version.isEmpty()) {
+                ver = it.version;
+                break;
+            }
+        }
+        if (ver != null) {
+            TextView vp = Ui.badge(main, ver, Ui.FOG, Ui.HAIRLINE);
+            LinearLayout.LayoutParams vlp = new LinearLayout.LayoutParams(-2, -2);
+            vlp.topMargin = Ui.dp(8);
+            vp.setLayoutParams(vlp);
+            card.addView(vp);
+        }
+
+        card.setOnClickListener(v -> {
+            UiFx.tap(main);
+            main.openDetail(grp);
+        });
+        UiFx.press(card);
         return card;
+    }
+
+    private static View margin(View v, int l, int t, int r, int b) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+        lp.setMargins(Ui.dp(l), Ui.dp(t), Ui.dp(r), Ui.dp(b));
+        v.setLayoutParams(lp);
+        return v;
     }
 }

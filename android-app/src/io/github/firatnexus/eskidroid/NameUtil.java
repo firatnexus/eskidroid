@@ -90,4 +90,25 @@ public final class NameUtil {
         }
         return sb.toString().trim();
     }
+
+    /** Gruplama anahtarı: küçük harf, yalnız harf+rakam (boşluk/nokta yok). */
+    public static String normalize(String s) {
+        if (s == null) return "";
+        StringBuilder sb = new StringBuilder();
+        for (char c : s.toLowerCase(Locale.ROOT).toCharArray()) {
+            if (Character.isLetterOrDigit(c)) sb.append(c);
+        }
+        return sb.toString();
+    }
+
+    /** Dosya adından sürüm ayıklar (NameUtil.clean sarmalayıcı; xapk/apks dahil). */
+    public static String versionOf(String fileName) {
+        if (fileName == null) return "";
+        String f = fileName.toLowerCase(Locale.ROOT);
+        if (f.endsWith(".apk") || f.endsWith(".xapk") || f.endsWith(".apks")) {
+            f = f.substring(0, f.lastIndexOf('.'));
+        }
+        String[] nv = clean(f);
+        return nv[1];
+    }
 }

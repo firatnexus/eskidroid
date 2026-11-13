@@ -48,14 +48,14 @@ public final class DepoScreen {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Ui.CANVAS);
 
-        TextView title = Ui.text(main, "Depo", Ui.WHITE, 22, 2);
+        TextView title = Ui.text(main, L.s(R.string.tab_library), Ui.INK, 22, 2);
         title.setLetterSpacing(-0.02f);
         LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(-2, -2);
         tlp.setMargins(Ui.dp(20), Ui.dp(16), Ui.dp(20), 0);
         title.setLayoutParams(tlp);
         root.addView(title);
 
-        TextView sub = Ui.text(main, "İndirdiğin her şey burada kalır — tekrar indirilmez", Ui.GRAPHITE, 13, 0);
+        TextView sub = Ui.text(main, L.s(R.string.depo_subtitle), Ui.GRAPHITE, 13, 0);
         sub.setSingleLine(true);
         sub.setEllipsize(TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-1, -2);
@@ -82,7 +82,7 @@ public final class DepoScreen {
         box.setLayoutParams(blp);
 
         query = new EditText(main);
-        query.setHint("Depoda ara…");
+        query.setHint(L.s(R.string.depo_search_hint));
         query.setHintTextColor(Ui.GRAPHITE);
         query.setTextColor(Ui.WHITE);
         query.setTextSize(14);
@@ -119,17 +119,17 @@ public final class DepoScreen {
         hlp.bottomMargin = Ui.dp(4);
         hs.setLayoutParams(hlp);
 
-        addFilterChip(chips, "Tümü", "all");
-        addFilterChip(chips, "Yamalanmış", "patched");
-        addFilterChip(chips, "Yamasız", "unpatched");
+        addFilterChip(chips, L.s(R.string.filter_all), "all");
+        addFilterChip(chips, L.s(R.string.filter_patched), "patched");
+        addFilterChip(chips, L.s(R.string.filter_unpatched), "unpatched");
 
-        TextView clearAll = Ui.pill(main, "Tümünü temizle", 0x00000000, Ui.EMBER, Ui.EMBER);
+        TextView clearAll = Ui.dangerButton(main, L.s(R.string.clear_all));
         clearAll.setMinHeight(Ui.dp(36));
         clearAll.setTextSize(12);
         clearAll.setOnClickListener(v -> main.confirm(
-                "Tümünü temizle",
-                "Depodaki tüm dosyalar silinecek. Emin misin?",
-                new String[]{"Sil", "Vazgeç"},
+                L.s(R.string.clear_all),
+                L.s(R.string.clear_all_confirm),
+                new String[]{L.s(R.string.delete), L.s(R.string.cancel)},
                 new Runnable[]{() -> LibraryManager.get(main).clearAll(), null}));
         LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(-2, -2);
         clp.leftMargin = Ui.dp(8);
@@ -198,15 +198,15 @@ public final class DepoScreen {
         if (all.isEmpty()) {
             stats.setText("");
         } else {
-            stats.setText(all.size() + " sürüm • " + Ui.size(lib.totalSize()));
+            stats.setText(L.s(R.string.depo_stats, all.size(), Ui.size(lib.totalSize())));
         }
         list.removeAllViews();
         if (all.isEmpty()) {
-            TextView t = Ui.text(main, "Henüz hiçbir şey indirmedin", Ui.WHITE, 16, 1);
+            TextView t = Ui.text(main, L.s(R.string.depo_empty), Ui.WHITE, 16, 1);
             t.setPadding(Ui.dp(8), Ui.dp(16), Ui.dp(8), Ui.dp(6));
             list.addView(t);
             TextView h = Ui.text(main,
-                    "Ara sekmesinden bir uygulama indir;\nher sürüm kalıcı olarak burada saklanır.",
+                    L.s(R.string.depo_empty_hint),
                     Ui.GRAPHITE, 13, 0);
             h.setPadding(Ui.dp(8), 0, Ui.dp(8), 0);
             list.addView(h);
@@ -230,7 +230,7 @@ public final class DepoScreen {
             g.add(m);
         }
         if (groups.isEmpty()) {
-            TextView t = Ui.text(main, "Bu filtreyle sonuç yok", Ui.GRAPHITE, 14, 0);
+            TextView t = Ui.text(main, L.s(R.string.depo_no_match), Ui.GRAPHITE, 14, 0);
             t.setPadding(Ui.dp(8), Ui.dp(16), Ui.dp(8), 0);
             list.addView(t);
             return;
@@ -271,7 +271,7 @@ public final class DepoScreen {
         name.setSingleLine(true);
         name.setEllipsize(TextUtils.TruncateAt.END);
         info.addView(name);
-        info.addView(Ui.text(main, first.sourceLabel() + " • " + metas.size() + " sürüm", Ui.GRAPHITE, 12, 0));
+        info.addView(Ui.text(main, first.sourceLabel() + " • " + L.s(R.string.version_count, metas.size()), Ui.GRAPHITE, 12, 0));
         head.addView(info);
         card.addView(head);
 
@@ -294,25 +294,25 @@ public final class DepoScreen {
         l1.setOrientation(LinearLayout.HORIZONTAL);
         l1.setGravity(Gravity.CENTER_VERTICAL);
         l1.setPadding(0, Ui.dp(8), 0, 0);
-        TextView vp = Ui.miniPill(main, m.version, Ui.MIST, Ui.SMOKE);
+        TextView vp = Ui.badge(main, m.version, Ui.FOG, Ui.HAIRLINE);
         l1.addView(vp);
         LibraryManager lib = LibraryManager.get(main);
         if (m.patched) {
-            TextView p = Ui.miniPill(main, "Yamalandı", Ui.GREEN, Ui.GREEN);
+            TextView p = Ui.badge(main, L.s(R.string.patched), Ui.GREEN, Ui.GREEN);
             LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(-2, -2);
             plp.leftMargin = Ui.dp(6);
             p.setLayoutParams(plp);
             l1.addView(p);
         }
         if (lib.isInstalled(m)) {
-            TextView p = Ui.miniPill(main, "Kurulu", Ui.GREEN, Ui.GREEN);
+            TextView p = Ui.badge(main, L.s(R.string.installed), Ui.GREEN, Ui.GREEN);
             LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(-2, -2);
             plp.leftMargin = Ui.dp(6);
             p.setLayoutParams(plp);
             l1.addView(p);
         }
         if (m.installedMode != null) {
-            TextView im = Ui.text(main, "son kurulum: " + ("patched".equals(m.installedMode) ? "yamalı" : "yamasız"),
+            TextView im = Ui.text(main, L.s(R.string.last_install, "patched".equals(m.installedMode) ? L.s(R.string.patched_l) : L.s(R.string.original_l)),
                     Ui.GRAPHITE, 10, 0);
             LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(0, -2, 1f);
             ilp.leftMargin = Ui.dp(8);
@@ -338,13 +338,13 @@ public final class DepoScreen {
         btns.setPadding(0, Ui.dp(8), 0, 0);
 
         boolean primaryIsPatched = m.patched || lib.patchedFirst(m);
-        TextView primary = primaryIsPatched ? Ui.primaryPill(main, "Yamalı Kur") : Ui.primaryPill(main, "Yamasız Kur");
+        TextView primary = primaryIsPatched ? Ui.primaryButton(main, L.s(R.string.install_patched)) : Ui.primaryButton(main, L.s(R.string.install_original));
         primary.setTextSize(12);
         primary.setMinHeight(Ui.dp(36));
         primary.setOnClickListener(x -> main.startInstall(m, primaryIsPatched));
         btns.addView(primary);
 
-        TextView share = Ui.ghostPill(main, "Paylaş");
+        TextView share = Ui.ghostButton(main, L.s(R.string.share));
         share.setTextSize(12);
         share.setMinHeight(Ui.dp(36));
         share.setOnClickListener(x -> share(m));
@@ -353,7 +353,7 @@ public final class DepoScreen {
         share.setLayoutParams(shlp);
         btns.addView(share);
 
-        TextView del = Ui.ghostPill(main, "Sil");
+        TextView del = Ui.ghostButton(main, L.s(R.string.delete));
         del.setTextSize(12);
         del.setMinHeight(Ui.dp(36));
         del.setOnClickListener(x -> confirmDelete(m));
@@ -367,12 +367,12 @@ public final class DepoScreen {
             LinearLayout ex = new LinearLayout(main);
             ex.setOrientation(LinearLayout.HORIZONTAL);
             ex.setPadding(0, Ui.dp(6), 0, 0);
-            TextView perms = Ui.ghostPill(main, "İzinleri aç");
+            TextView perms = Ui.ghostButton(main, L.s(R.string.open_permissions));
             perms.setTextSize(12);
             perms.setMinHeight(Ui.dp(36));
             perms.setOnClickListener(x -> main.openPermissions(m.packageName));
             ex.addView(perms);
-            TextView crash = Ui.ghostPill(main, "Çöktü mü?");
+            TextView crash = Ui.ghostButton(main, L.s(R.string.crashed));
             crash.setTextSize(12);
             crash.setMinHeight(Ui.dp(36));
             crash.setOnClickListener(x -> main.crashPrompt(m));
@@ -404,7 +404,7 @@ public final class DepoScreen {
                 File apk = m.patched ? new File(folder, "patched.apk") : new File(folder, "original.apk");
                 if (!apk.exists()) apk = new File(folder, "original.apk");
                 if (!apk.exists()) {
-                    main.runOnUiThread(() -> Toast.makeText(main, "Dosya bulunamadı", Toast.LENGTH_SHORT).show());
+                    main.runOnUiThread(() -> Toast.makeText(main, L.s(R.string.file_missing), Toast.LENGTH_SHORT).show());
                     return;
                 }
                 File staged = lib.stageForProvider(apk, m.itemId + "-" + m.version);
@@ -412,11 +412,11 @@ public final class DepoScreen {
                 send.setType("application/vnd.android.package-archive");
                 send.putExtra(Intent.EXTRA_STREAM, EskiDroidProvider.uriFor(staged));
                 send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                Intent chooser = Intent.createChooser(send, "Paylaş");
+                Intent chooser = Intent.createChooser(send, L.s(R.string.share));
                 chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                 main.runOnUiThread(() -> main.startActivity(chooser));
             } catch (final Exception e) {
-                main.runOnUiThread(() -> Toast.makeText(main, "Paylaşılamadı: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                main.runOnUiThread(() -> Toast.makeText(main, L.s(R.string.share_failed) + e.getMessage(), Toast.LENGTH_LONG).show());
             }
         }).start();
     }
@@ -429,18 +429,18 @@ public final class DepoScreen {
         List<String> labels = new ArrayList<>();
         List<Runnable> acts = new ArrayList<>();
         if (hasO) {
-            labels.add("Orijinal APK'yı sil");
+            labels.add(L.s(R.string.delete_original));
             acts.add(() -> lib.delete(m, true, false));
         }
         if (hasP) {
-            labels.add("Yamalı APK'yı sil");
+            labels.add(L.s(R.string.delete_patched));
             acts.add(() -> lib.delete(m, false, true));
         }
-        labels.add("İkisini de sil");
+        labels.add(L.s(R.string.delete_both));
         acts.add(() -> lib.delete(m, true, true));
-        labels.add("Vazgeç");
+        labels.add(L.s(R.string.cancel));
         acts.add(null);
-        main.confirm("Silinsin mi?", m.displayName() + " " + m.version,
+        main.confirm(L.s(R.string.delete_confirm), m.displayName() + " " + m.version,
                 labels.toArray(new String[0]), acts.toArray(new Runnable[0]));
     }
 }

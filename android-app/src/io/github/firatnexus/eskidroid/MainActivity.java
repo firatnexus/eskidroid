@@ -10,11 +10,15 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.GestureDetector;
 import android.view.Gravity;
+import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -29,8 +33,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * EskiDroid — kabuk: ekranlar (Ara / Depo / Ayarlar), alt pil dock,
- * sürümler ekranı, kurulum onay kutusu ve bildirimler.
+ * EskiDroid — kabuk: ekranlar (Ara / Depo / Ayarlar), alt dock,
+ * detay sayfası, kurulum onay kutusu, tam ekran görsel görüntüleyici,
+ * tema (Things: Sistem/Aydınlık/Karanlık) ve dil (5 dil) yönetimi.
  * Yamalama/imzalama/kurulum mantığı AndroidAppPatcher, ApkSignerUtil ve
  * EskiDroidProvider'dan yalnızca ÇAĞRILIR; bunlar değiştirilmez.
  */
@@ -45,7 +50,7 @@ public class MainActivity extends Activity {
     private SearchScreen searchScreen;
     private DepoScreen depoScreen;
     private SettingsScreen settingsScreen;
-    private VersionsPanel versionsPanel;
+    private DetailScreen detailScreen;
     private String tab = "ara";
     private View currentOverlay;
     private final Map<String, View[]> dockViews = new HashMap<>();
@@ -59,8 +64,8 @@ public class MainActivity extends Activity {
 
         if (Build.VERSION.SDK_INT >= 26) {
             NotificationChannel ch = new NotificationChannel(CHANNEL_ID,
-                    "İndirme durumu", NotificationManager.IMPORTANCE_LOW);
-            ch.setDescription("İndirme ve kurulum ilerlemesi");
+                    L.s(R.string.notif_channel), NotificationManager.IMPORTANCE_LOW);
+            ch.setDescription(L.s(R.string.notif_channel_desc));
             ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).createNotificationChannel(ch);
         }
 
@@ -69,11 +74,11 @@ public class MainActivity extends Activity {
 
         LibraryManager.get(this).setChangeListener(() -> {
             depoScreen.render();
-            if (versionsPanel != null) versionsPanel.render();
+            refreshVersions();
         });
     }
 
-    /** Kenardan kenaya koyu; sistem çubukları şeffaf, içerik inset'lerle korunur. */
+    /** Kenardan kenara; sistem çubukları şeffaf, içerik inset'lerle korunur. */
     private void setupWindow() {
         android.view.Window w = getWindow();
         w.getDecorView().setSystemUiVisibility(
@@ -102,7 +107,7 @@ public class MainActivity extends Activity {
         overlayHost = new FrameLayout(this);
         root.addView(overlayHost, new FrameLayout.LayoutParams(-1, -1));
 
-        // Alt dock: yüzen pil (#191919, 99dp, 1px kenarlık, monoline ikonlar)
+        // Alt dock: yüzen kart (Things: Paper yüzey, 18dp köşe, hairline kenarlık)
         dockWrap = new LinearLayout(this);
         dockWrap.setOrientation(LinearLayout.VERTICAL);
         dockWrap.setGravity(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
@@ -113,16 +118,17 @@ public class MainActivity extends Activity {
         dock.setPadding(Ui.dp(8), Ui.dp(8), Ui.dp(8), Ui.dp(8));
         GradientDrawable dg = new GradientDrawable();
         dg.setColor(Ui.CARD);
-        dg.setCornerRadius(Ui.dp(99));
-        dg.setStroke(Math.max(1, Ui.dp(1)), Ui.MIST);
+        dg.setCornerRadius(Ui.dp(18));
+        dg.setStroke(Math.max(1, Ui.dp(1)), Ui.HAIRLINE);
         dock.setBackground(dg);
+        dock.setElevation(Ui.dp(8));
         LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(-2, -2);
         dl.setMargins(Ui.dp(16), 0, Ui.dp(16), Ui.dp(16));
         dock.setLayoutParams(dl);
 
-        dock.addView(dockItem("ara", "Ara"));
-        dock.addView(dockItem("depo", "Depo"));
-        dock.addView(dockItem("ayarlar", "Ayarlar"));
+        dock.addView(dockItem("ara", L.s(R.string.tab_search)));
+        dock.addView(dockItem("depo", L.s(R.string.tab_library)));
+        dock.addView(dockItem("ayarlar", L.s(R.string.tab_settings)));
         dockWrap.addView(dock);
         root.addView(dockWrap, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
 
@@ -132,7 +138,7 @@ public class MainActivity extends Activity {
             return insets;
         });
 
-        switchTab("ara");
+        switchTab("ara", false);
         return root;
     }
 
@@ -148,17 +154,20 @@ public class MainActivity extends Activity {
         ilp.gravity = Gravity.CENTER_HORIZONTAL;
         iv.setLayoutParams(ilp);
         col.addView(iv);
-        TextView t = Ui.text(this, label, Ui.GRAPHITE, 11, 1);
+        TextView t = Ui.text(this, label, Ui.FOG, 11, 1);
         t.setGravity(Gravity.CENTER);
         col.addView(t);
-        col.setOnClickListener(v -> switchTab(id));
+        col.setOnClickListener(v -> switchTab(id, true));
+        UiFx.press(col);
         dockViews.put(id, new View[]{iv, t});
         return col;
     }
 
-    private void switchTab(String id) {
+    private void switchTab(String id, boolean animate) {
         tab = id;
         closeVersions();
+        View target = "ara".equals(id) ? searchScreen.view()
+                : "depo".equals(id) ? depoScreen.view() : settingsScreen.view();
         searchScreen.view().setVisibility("ara".equals(id) ? View.VISIBLE : View.GONE);
         depoScreen.view().setVisibility("depo".equals(id) ? View.VISIBLE : View.GONE);
         settingsScreen.view().setVisibility("ayarlar".equals(id) ? View.VISIBLE : View.GONE);
@@ -168,8 +177,18 @@ public class MainActivity extends Activity {
             boolean active = e.getKey().equals(id);
             ImageView iv = (ImageView) e.getValue()[0];
             TextView t = (TextView) e.getValue()[1];
-            t.setTextColor(active ? Ui.WHITE : Ui.GRAPHITE);
-            iv.setImageDrawable(dockIcon(e.getKey(), active ? Ui.WHITE : Ui.GRAPHITE));
+            t.setTextColor(active ? Ui.INK : Ui.FOG);
+            iv.setImageDrawable(dockIcon(e.getKey(), active ? Ui.BLUE : Ui.FOG));
+            if (active && animate && UiFx.anims(this)) {
+                // Sekme geçiş animasyonu: ikon büyüyerek belirir
+                iv.setScaleX(0.7f);
+                iv.setScaleY(0.7f);
+                iv.animate().scaleX(1f).scaleY(1f)
+                        .setDuration(240)
+                        .setInterpolator(new android.view.animation.OvershootInterpolator(1.3f))
+                        .start();
+                UiFx.fadeIn(this, target);
+            }
         }
     }
 
@@ -179,23 +198,54 @@ public class MainActivity extends Activity {
         return Icons.search(this, color);
     }
 
-    // ============================ sürümler ekranı ============================
+    // ============================ tema / dil ============================
+
+    /** Tema veya dil değişince tüm arayüz anında yeniden çizilir (restart yok). */
+    public void rebuildUi() {
+        Ui.applyTheme(Prefs.get(this).dark(this));
+        dismissOverlay();
+        detailScreen = null;
+        setContentView(buildRoot());
+    }
+
+    // ============================ detay sayfası ============================
+
+    /** Grup kartından detay: en güvenilir kaynak seçilir (fdroid > archive > github). */
+    public void openDetail(AppGroup grp) {
+        SearchItem best = null;
+        for (SearchItem it : grp.items) {
+            if (Sources.FDROID.equals(it.source)) {
+                best = it;
+                break;
+            }
+        }
+        if (best == null && !grp.items.isEmpty()) best = grp.items.get(0);
+        if (best == null) return;
+        openVersions(best);
+    }
 
     public void openVersions(SearchItem item) {
         closeVersions();
-        versionsPanel = new VersionsPanel(this, item);
-        content.addView(versionsPanel.view(), new FrameLayout.LayoutParams(-1, -1));
+        detailScreen = new DetailScreen(this, item);
+        content.addView(detailScreen.view(), new FrameLayout.LayoutParams(-1, -1));
+        UiFx.slideIn(this, detailScreen.view());
     }
 
     public void closeVersions() {
-        if (versionsPanel != null) {
-            content.removeView(versionsPanel.view());
-            versionsPanel = null;
+        if (detailScreen != null) {
+            final DetailScreen d = detailScreen;
+            detailScreen = null;
+            UiFx.slideOut(this, d.view(), () -> {
+                try {
+                    content.removeView(d.view());
+                } catch (Exception ignored) {
+                }
+            });
         }
     }
 
     public void refreshVersions() {
-        if (versionsPanel != null) versionsPanel.render();
+        if (detailScreen != null) detailScreen.render();
     }
 
     @Override
@@ -204,12 +254,12 @@ public class MainActivity extends Activity {
             dismissOverlay();
             return;
         }
-        if (versionsPanel != null) {
+        if (detailScreen != null) {
             closeVersions();
             return;
         }
         if (!"ara".equals(tab)) {
-            switchTab("ara");
+            switchTab("ara", true);
             return;
         }
         super.onBackPressed();
@@ -219,7 +269,70 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         depoScreen.render();
-        if (versionsPanel != null) versionsPanel.render();
+        refreshVersions();
+    }
+
+    // ============================ tam ekran görsel ============================
+
+    /** Tam ekran görsel: pinch-zoom + sürükleme; dokunarak kapanır. */
+    public void showFullscreenImage(String url, String name) {
+        FrameLayout ov = new FrameLayout(this);
+        ov.setBackgroundColor(0xEE000000);
+
+        ImageView iv = new ImageView(this);
+        iv.setScaleType(ImageView.ScaleType.MATRIX);
+        Matrix mat = new Matrix();
+        iv.setImageMatrix(mat);
+        ImageLoader.get(this).load(url, 1280, iv, name);
+
+        final float[] scale = {1f};
+        final ScaleGestureDetector sgd = new ScaleGestureDetector(this,
+                new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                    @Override
+                    public boolean onScale(ScaleGestureDetector d) {
+                        float f = d.getScaleFactor();
+                        scale[0] = Math.max(0.5f, Math.min(6f, scale[0] * f));
+                        mat.setScale(scale[0], scale[0],
+                                d.getFocusX(), d.getFocusY());
+                        iv.setImageMatrix(mat);
+                        return true;
+                    }
+                });
+        final GestureDetector gd = new GestureDetector(this,
+                new GestureDetector.SimpleOnGestureListener() {
+                    @Override
+                    public boolean onDoubleTap(MotionEvent e) {
+                        scale[0] = scale[0] > 1.5f ? 1f : 2.5f;
+                        mat.setScale(scale[0], scale[0], e.getX(), e.getY());
+                        iv.setImageMatrix(mat);
+                        return true;
+                    }
+                });
+        iv.setOnTouchListener((v, e) -> {
+            sgd.onTouchEvent(e);
+            gd.onTouchEvent(e);
+            return true;
+        });
+        ov.addView(iv, new FrameLayout.LayoutParams(-1, -1));
+
+        TextView hint = Ui.text(this, L.s(R.string.zoom_hint), 0xB3FFFFFF, 11, 0);
+        FrameLayout.LayoutParams hlp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        hlp.bottomMargin = Ui.dp(32);
+        hint.setLayoutParams(hlp);
+        ov.addView(hint);
+
+        ov.setOnClickListener(v -> dismissOverlay());
+        overlayHost.addView(ov, new FrameLayout.LayoutParams(-1, -1));
+        currentOverlay = ov;
+        UiFx.tap(this);
+    }
+
+    public void openUrl(String url) {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+        } catch (Exception e) {
+            Toast.makeText(this, L.s(R.string.cannot_open), Toast.LENGTH_SHORT).show();
+        }
     }
 
     // ============================ kurulum ============================
@@ -241,13 +354,13 @@ public class MainActivity extends Activity {
                     File apk = usePatched ? new File(folder, "patched.apk") : new File(folder, "original.apk");
                     if (!apk.exists()) {
                         runOnUiThread(() -> Toast.makeText(this,
-                                "Dosya bulunamadı — tekrar indir", Toast.LENGTH_LONG).show());
+                                L.s(R.string.file_missing), Toast.LENGTH_LONG).show());
                         return;
                     }
                     runOnUiThread(() -> confirmInstall(mm, apk, usePatched));
                 } catch (final Exception e) {
                     runOnUiThread(() -> Toast.makeText(this,
-                            "Kurulum hazırlanamadı: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                            L.s(R.string.install_prep_error) + e.getMessage(), Toast.LENGTH_LONG).show());
                 }
             }).start();
         }
@@ -274,13 +387,17 @@ public class MainActivity extends Activity {
             public void onError(String message) {
                 notifyJob("", message, 0, true);
                 Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
+                UiFx.err(MainActivity.this);
+                UiFx.sndError(MainActivity.this);
                 refreshVersions();
                 depoScreen.render();
             }
 
             @Override
             public void onInstallReady(LibraryManager.Meta meta, File apk, boolean patched) {
-                notifyJob("", patched ? "Yamalı kurulum hazır" : "Kurulum hazır", 100, true);
+                notifyJob("", patched
+                        ? L.s(R.string.patched_ready) : L.s(R.string.install_ready), 100, true);
+                UiFx.done(MainActivity.this);
                 confirmInstall(meta, apk, patched);
                 refreshVersions();
                 depoScreen.render();
@@ -288,7 +405,7 @@ public class MainActivity extends Activity {
         };
     }
 
-    /** Kurulum onay kutusu: ikonu APK'dan çıkar, ABI uyumsuzsa ember uyarı göster. */
+    /** Kurulum onay kutusu: ikonu APK'dan çıkar, ABI uyumsuzsa uyarı göster. */
     public void confirmInstall(final LibraryManager.Meta m, final File apk, final boolean patched) {
         final LibraryManager lib = LibraryManager.get(this);
         new Thread(() -> {
@@ -301,7 +418,7 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> showInstallConfirm(m, staged, patched, icon, label, abiBad, abis));
             } catch (final Exception e) {
                 runOnUiThread(() -> Toast.makeText(this,
-                        "Kurulum hazırlanamadı: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                        L.s(R.string.install_prep_error) + e.getMessage(), Toast.LENGTH_LONG).show());
             }
         }).start();
     }
@@ -314,7 +431,7 @@ public class MainActivity extends Activity {
         LinearLayout card = Ui.card(this);
         card.setGravity(Gravity.CENTER_HORIZONTAL);
 
-        ImageView iv = Ui.circularImage(this, 48);
+        ImageView iv = Ui.appIcon(this, 48);
         if (icon != null) iv.setImageBitmap(icon);
         else iv.setImageBitmap(Ui.letterAvatar(label != null ? label : m.displayName(), Ui.dp(48)));
         LinearLayout.LayoutParams ivlp = new LinearLayout.LayoutParams(Ui.dp(48), Ui.dp(48));
@@ -322,23 +439,23 @@ public class MainActivity extends Activity {
         iv.setLayoutParams(ivlp);
         card.addView(iv);
 
-        card.addView(centered(Ui.text(this, label != null ? label : m.displayName(), Ui.WHITE, 16, 1)));
-        card.addView(centered(Ui.text(this, "Sürüm " + m.version + " • " + m.sourceLabel(), Ui.GRAPHITE, 12, 0)));
-        if (m.size > 0) card.addView(centered(Ui.text(this, Ui.size(m.size), Ui.GRAPHITE, 12, 0)));
+        card.addView(centered(Ui.text(this, label != null ? label : m.displayName(), Ui.INK, 16, 1)));
+        card.addView(centered(Ui.text(this, L.s(R.string.version_line, m.version, m.sourceLabel()), Ui.FOG, 12, 0)));
+        if (m.size > 0) card.addView(centered(Ui.text(this, Ui.size(m.size), Ui.FOG, 12, 0)));
         String sdkLine = null;
         if (m.targetSdkBefore != null) {
-            sdkLine = "Hedef SDK: " + m.targetSdkBefore
-                    + (patched && m.targetSdkAfter != null ? " → " + m.targetSdkAfter + " (yamalı)" : "");
+            sdkLine = L.s(R.string.target_sdk_line, m.targetSdkBefore)
+                    + (patched && m.targetSdkAfter != null
+                    ? " → " + m.targetSdkAfter + " (" + L.s(R.string.patched_l) + ")" : "");
         } else if (patched) {
-            sdkLine = "Hedef SDK: 28'e yamalanacak";
+            sdkLine = L.s(R.string.target_sdk_will);
         }
-        if (sdkLine != null) card.addView(centered(Ui.text(this, sdkLine, Ui.GRAPHITE, 12, 0)));
+        if (sdkLine != null) card.addView(centered(Ui.text(this, sdkLine, Ui.FOG, 12, 0)));
 
         if (abiBad) {
             String deviceAbis = joinCommas(Build.SUPPORTED_ABIS);
             TextView warn = Ui.text(this,
-                    "Bu uygulama cihazının mimarisiyle uyumsuz olabilir\n(lib: "
-                            + joinCommas(abis.toArray(new String[0])) + ", cihaz: " + deviceAbis + ")",
+                    L.s(R.string.abi_warn, joinCommas(abis.toArray(new String[0])), deviceAbis),
                     Ui.EMBER, 12, 0);
             warn.setPadding(0, Ui.dp(8), 0, 0);
             warn.setGravity(Gravity.CENTER);
@@ -348,14 +465,17 @@ public class MainActivity extends Activity {
         LinearLayout btns = new LinearLayout(this);
         btns.setOrientation(LinearLayout.VERTICAL);
         btns.setPadding(0, Ui.dp(12), 0, 0);
-        TextView install = Ui.primaryPill(this, abiBad ? "Yine de kur" : "Kur");
+        TextView install = Ui.primaryButton(this, abiBad ? L.s(R.string.install_anyway) : L.s(R.string.install));
+        UiFx.press(install);
         install.setOnClickListener(x -> {
             dismissOverlay();
+            UiFx.tap(this);
             LibraryManager.get(this).markInstalled(m, patched ? "patched" : "original");
             promptInstall(staged, m.displayName());
         });
         btns.addView(install);
-        TextView cancel = Ui.ghostPill(this, "Vazgeç");
+        TextView cancel = Ui.ghostButton(this, L.s(R.string.cancel));
+        UiFx.press(cancel);
         cancel.setOnClickListener(x -> dismissOverlay());
         LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(-1, -2);
         clp.topMargin = Ui.dp(8);
@@ -373,24 +493,23 @@ public class MainActivity extends Activity {
     /** "Açılışta çöktü mü?" — diğer modla yeniden kurmayı öner. */
     public void crashPrompt(final LibraryManager.Meta m) {
         boolean wasPatched = "patched".equals(m.installedMode);
-        String otherLabel = wasPatched ? "yamasız" : "yamalı";
-        confirm("Açılışta çöktü mü?",
-                "Uygulama açılışta çöküyorsa diğer kurulum modunu dene.\nSon kurulum: "
-                        + (wasPatched ? "yamalı" : "yamasız") + ".",
-                new String[]{"Evet — " + otherLabel + " kur", "Hayır, sorun yok"},
+        String otherLabel = wasPatched ? L.s(R.string.install_original) : L.s(R.string.install_patched);
+        confirm(L.s(R.string.crash_title),
+                L.s(R.string.crash_body, wasPatched ? L.s(R.string.patched_l) : L.s(R.string.original_l)),
+                new String[]{L.s(R.string.crash_yes, otherLabel), L.s(R.string.crash_no)},
                 new Runnable[]{() -> startInstall(m, !wasPatched), null});
     }
 
     public void openPermissions(String pkg) {
         if (pkg == null) {
-            Toast.makeText(this, "Paket adı bilinmiyor", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, L.s(R.string.pkg_unknown), Toast.LENGTH_SHORT).show();
             return;
         }
         try {
             startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                     Uri.parse("package:" + pkg)));
         } catch (Exception e) {
-            Toast.makeText(this, "Açılamadı", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, L.s(R.string.cannot_open), Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -398,7 +517,7 @@ public class MainActivity extends Activity {
     private void promptInstall(File apk, String name) {
         try {
             if (!getPackageManager().canRequestPackageInstalls()) {
-                Toast.makeText(this, "Kurulum izni vermen gerekiyor — ayarlar açılıyor", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, L.s(R.string.install_perm_needed), Toast.LENGTH_LONG).show();
                 Intent s = new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                         Uri.parse("package:" + getPackageName()));
                 startActivity(s);
@@ -408,8 +527,9 @@ public class MainActivity extends Activity {
             in.setData(EskiDroidProvider.uriFor(apk));
             in.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivity(in);
+            UiFx.sndInstall(this);
         } catch (Exception e) {
-            Toast.makeText(this, "Kurulum başlatılamadı: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, L.s(R.string.install_failed) + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
@@ -419,20 +539,23 @@ public class MainActivity extends Activity {
         FrameLayout ov = new FrameLayout(this);
         ov.setBackgroundColor(Ui.OVERLAY);
         LinearLayout card = Ui.card(this);
-        if (title != null) card.addView(Ui.text(this, title, Ui.WHITE, 16, 1));
+        if (title != null) card.addView(Ui.text(this, title, Ui.INK, 16, 1));
         if (message != null) {
-            TextView m = Ui.text(this, message, Ui.GRAPHITE, 13, 0);
+            TextView m = Ui.text(this, message, Ui.FOG, 13, 0);
             m.setPadding(0, Ui.dp(6), 0, Ui.dp(8));
             card.addView(m);
         }
         for (int i = 0; i < labels.length; i++) {
             final Runnable a = i < actions.length ? actions[i] : null;
-            TextView b = i == 0 ? Ui.primaryPill(this, labels[i]) : Ui.ghostPill(this, labels[i]);
+            TextView b = i == 0 ? Ui.primaryButton(this, labels[i])
+                    : Ui.ghostButton(this, labels[i]);
+            UiFx.press(b);
             LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(-1, -2);
             blp.topMargin = Ui.dp(8);
             b.setLayoutParams(blp);
             b.setOnClickListener(x -> {
                 dismissOverlay();
+                UiFx.tap(this);
                 if (a != null) a.run();
             });
             card.addView(b);
@@ -461,7 +584,7 @@ public class MainActivity extends Activity {
         }
         if (want.isEmpty()) return true;
         requestPermissions(want.toArray(new String[0]), 7);
-        Toast.makeText(this, "İzin verilince tekrar dokun", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, L.s(R.string.perm_retry), Toast.LENGTH_SHORT).show();
         return false;
     }
 

@@ -305,16 +305,16 @@ public final class LibraryManager {
         Meta existing = find(item.id, v.label);
         if (existing != null) {
             if (validate(existing)) {
-                done(key, existing, "Kütüphanede hazır");
+                done(key, existing, L.s(R.string.ready_in_library));
                 return;
             }
             removeTree(dirFor(item.id, v.label)); // bozuk/eksik dosya: otomatik temizle
         }
         File folder = dirFor(item.id, v.label);
-        if (!folder.exists() && !folder.mkdirs()) throw new Exception("Klasör oluşturulamadı");
+        if (!folder.exists() && !folder.mkdirs()) throw new Exception(L.s(R.string.mkdir_failed));
         File orig = new File(folder, "original.apk");
         File part = new File(folder, "original.apk.part");
-        stage(key, "download", 0, "İndiriliyor");
+        stage(key, "download", 0, L.s(R.string.step_download));
 
         long doneBytes = part.exists() ? part.length() : 0;
         HttpURLConnection c = (HttpURLConnection) new URL(v.url).openConnection();
@@ -335,7 +335,7 @@ public final class LibraryManager {
                 doneBytes = 0;
                 part.delete();
             } else {
-                throw new Exception("Sunucu " + code + " döndü");
+                throw new Exception(L.s(R.string.server_returned, code));
             }
             long total = c.getContentLengthLong();
             if (append) total += doneBytes;
@@ -352,7 +352,7 @@ public final class LibraryManager {
                 long now = System.currentTimeMillis();
                 if (now - lastUi > 300) {
                     lastUi = now;
-                    stage(key, "download", total > 0 ? (int) (sofar * 100 / total) : -1, "İndiriliyor");
+                    stage(key, "download", total > 0 ? (int) (sofar * 100 / total) : -1, L.s(R.string.step_download));
                 }
             }
             os.close();
@@ -365,11 +365,11 @@ public final class LibraryManager {
         }
         if (v.size > 0 && part.length() != v.size) {
             part.delete();
-            throw new Exception("İndirilen dosyanın boyutu beklenenle uyuşmuyor");
+            throw new Exception(L.s(R.string.size_mismatch));
         }
         if (!part.renameTo(orig)) {
             part.delete();
-            throw new Exception("Dosya taşınamadı");
+            throw new Exception(L.s(R.string.move_failed));
         }
         Meta m = new Meta();
         m.itemId = item.id;
@@ -388,7 +388,7 @@ public final class LibraryManager {
         m.targetSdkBefore = ts;
         readPkgInfo(m, orig);
         save(m);
-        done(key, m, "İndirildi");
+        done(key, m, L.s(R.string.downloaded_done));
     }
 
     // ============================ yama + imza ============================
@@ -423,7 +423,7 @@ public final class LibraryManager {
     private void runProcess(Meta meta, boolean install, boolean force, String key) throws Exception {
         File folder = dirFor(meta.itemId, meta.version);
         File orig = new File(folder, "original.apk");
-        if (!orig.exists()) throw new Exception("Orijinal APK bulunamadı (Depo'dan silinmiş olabilir)");
+        if (!orig.exists()) throw new Exception(L.s(R.string.original_missing));
         Integer ts = meta.targetSdkBefore;
         if (ts == null) {
             try {
@@ -439,7 +439,7 @@ public final class LibraryManager {
             meta.patched = false;
             save(meta);
             if (install) {
-                stage(key, "install", -1, "Kuruluyor");
+                stage(key, "install", -1, L.s(R.string.step_install));
                 installReady(key, meta, orig, false);
             } else {
                 done(key, meta, "Yamalama gerekmiyor (hedef SDK " + ts + " ≥ " + target + ")");
@@ -450,9 +450,9 @@ public final class LibraryManager {
         if (!reuse) {
             if (patched.exists()) patched.delete();
             File tmp = new File(folder, "patched.tmp.apk");
-            stage(key, "patch", -1, "Yamalanıyor");
+            stage(key, "patch", -1, L.s(R.string.step_patch));
             AndroidAppPatcher.patch(orig, tmp, target);
-            stage(key, "sign", -1, "İmzalanıyor");
+            stage(key, "sign", -1, L.s(R.string.step_sign));
             ApkSignerUtil.sign(tmp, patched);
             tmp.delete();
         }
@@ -461,10 +461,10 @@ public final class LibraryManager {
         meta.targetSdkAfter = target;
         save(meta);
         if (install) {
-            stage(key, "install", -1, "Kuruluyor");
+            stage(key, "install", -1, L.s(R.string.step_install));
             installReady(key, meta, patched, true);
         } else {
-            done(key, meta, reuse ? "Yamalı APK hazır" : "Yamalandı ve imzalandı (hedef SDK " + target + ")");
+            done(key, meta, reuse ? L.s(R.string.patched_ready) : L.s(R.string.patched_done, target));
         }
     }
 
@@ -812,7 +812,7 @@ public final class LibraryManager {
 
     private static class Cancelled extends Exception {
         Cancelled() {
-            super("İndirme iptal edildi");
+            super(L.s(R.string.download_cancelled));
         }
     }
 }
