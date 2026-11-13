@@ -251,8 +251,20 @@ public final class DetailScreen {
 
     // ============================ çizim ============================
 
+    /** En yeni kullanılabilir sürümü "Önerilen" olarak işaretler (bir kez). */
+    private void markRecommended() {
+        for (VersionInfo v : versions) if (v.recommended) return;
+        for (VersionInfo v : versions) {
+            if (!v.unavailable) {
+                v.recommended = true;
+                return;
+            }
+        }
+    }
+
     public void render() {
         if (versions.isEmpty() && screenshots.isEmpty() && fd == null && arcMeta == null) return;
+        markRecommended();
         list.removeAllViews();
         List<View> cards = new ArrayList<>();
 
