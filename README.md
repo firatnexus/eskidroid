@@ -5,7 +5,7 @@ Eski Android sürümlerinde yazılmış oyun ve uygulamaları (APK) yeni Android
 - **Arama ve indirme**: Önce kaynak seçilir (F-Droid / Internet Archive / GitHub); arama sonuçları yalnız seçilen kaynaktan gelir. Sürüm listeleme, indirme ve uygulama ikonları dahil.
 - **Depo (kütüphane)**: Her indirme kalıcı olarak saklanır (`original.apk` + `patched.apk` + `meta.json`); aynı sürüm bir daha asla indirilmez, kesilen indirme kaldığı yerden devam eder (`.part` + HTTP Range), SHA-256 doğrulaması, Yamalanmış/Yamasız filtreleri, Kur/Yamala/Paylaş/Sil eylemleri, çevrimdışı çalışır. **Cihazdaki APK dosyaları da "Cihazdan APK ekle" ile Depo'ya alınabilir** (yamalanıp kurulabilir).
 - **Uyumluluk modu**: Yama hedefi artık sabit 28 değil; cihaza göre en düşük gerekli `targetSdkVersion` seçilir (Android 15+ → 24, Android 14 → 23, altı → önce yamasız deneme). "Yüksek (28)" seçeneği eski davranışı korur. Hedef SDK asla düşürülmez, gereksiz yama yapılmaz; yamalı ve yamasız kurulum ayrı ayrı sunulur.
-- **Mağaza arayüzü (v1.5)**: App Store havası — beyaz/karanlık zemin, pil butonlar, büyük başlıklar, kenardan kenara alt sekme çubuğu; detay sayfasında ekran görüntüleri şeridi ve Play Store tarzı tam ekran görüntüleyici (sayfalama + yakınlaştırma).
+- **Mağaza arayüzü (v1.6)**: GitHub tasarım dili — koyu Deep Void zemin, cam kartlar (24dp köşe, gölge yok), Terminal Green tek birincil buton, Sky bağlantı rengi, menekşe kenarlıklı önerilen kart, monospace + BÜYÜK harf mikro-etiketler, hero başlıkta menekşe radyal hale; detay sayfasında ekran görüntüleri şeridi ve Play Store tarzı tam ekran görüntüleyici (sayfalama + yakınlaştırma).
 - **Çökme önleme (v1.5)**: Yamalanan APK'lara `extractNativeLibs=true`, `org.apache.http.legacy` kütüphanesi ve `usesCleartextTraffic=true` eklenir; yeni nesil cihazlarda açılış sonrası çökme büyük ölçüde giderilir. Eski yamalı kopyalar otomatik yeniden yamalanır.
 - **Güvenlik (v1.5)**: İndirmeler yalnız HTTPS; kurulum sağlayıcısı yalnız kendi hazırladığı `install-*.apk` dosyalarını sunar (yol geçişi kapalı); `allowBackup=false`; GitHub Actions işleri en az gerekli izinle çalışır.
 - **Kurulum sonrası yardımcılar**: ABI uyumsuzluk uyarısı (lib/ vs cihaz mimarisi), "İzinleri aç" kısayolu, "Açılışta çöktü mü?" ile diğer modla yeniden kurulum.
@@ -14,11 +14,13 @@ Eski Android sürümlerinde yazılmış oyun ve uygulamaları (APK) yeni Android
 
 ## Kurulum (Android — uygulama, bilgisayarsız)
 
-**APK indirme: [EskiDroid-v1.5.apk](releases/EskiDroid-v1.5.apk)** (Android 7+; SHA-256: `23fd981a941b2c8d50a11137ba5c8ae0ad95a40ff32d6d3be781ccb4ca85f720`)
+**APK indirme: [EskiDroid-v1.6.apk](releases/EskiDroid-v1.6.apk)** (Android 7+; SHA-256: `17d261847d31206748e5f530e2f3113472fa0d5c8eff5059d46ef06e0de42923`)
+
+v1.6: GitHub tasarım dili — koyu #0d1117 zemin, 24dp köşeli cam kartlar (gölge yok, kenarlıkla yükseklik), Terminal Green tek birincil buton, Sky bağlantılar, menekşe kenarlıklı önerilen sürüm kartı, monospace mikro-etiketler, hero başlıkta menekşe hale.
 
 v1.5: App Store tarzı mağaza arayüzü; aramada önce kaynak seçimi (F-Droid / Web Arşivi / GitHub — yalnız seçilen kaynağın sonuçları); yamalı uygulamaların açılış sonrası çökmesini önleyen yama iyileştirmeleri; cihazdan APK içe aktarma; Play Store tarzı tam ekran ekran görüntüsü görüntüleyicisi; güvenlik sağlamlaştırma (HTTPS zorunlu, sağlayıcı kısıtı, allowBackup kapatma, CI izinleri).
 
-Önceki sürümler: [v1.4](releases/EskiDroid-v1.4.apk) (SHA-256: `ff02f985a666868d539d4db8ea4639111d9d9c7447e9314eb7cf197d99461e9f`), [v1.3](releases/EskiDroid-v1.3.apk) (SHA-256: `ba784a36f06166cb7244c55d0a6346c96f44cffa6162d608b4ce58275ee223c6`)
+Önceki sürümler: [v1.5](releases/EskiDroid-v1.5.apk) (SHA-256: `23fd981a941b2c8d50a11137ba5c8ae0ad95a40ff32d6d3be781ccb4ca85f720`), [v1.4](releases/EskiDroid-v1.4.apk) (SHA-256: `ff02f985a666868d539d4db8ea4639111d9d9c7447e9314eb7cf197d99461e9f`), [v1.3](releases/EskiDroid-v1.3.apk) (SHA-256: `ba784a36f06166cb7244c55d0a6346c96f44cffa6162d608b4ce58275ee223c6`)
 
 v1.3: `ACCESS_NETWORK_STATE` izni eklendi ("internet bağlantısı yok" hatası giderildi), `versionCode`/`versionName` manifest köküne taşındı ("Sürüm: null" hatası giderildi), bağlantı durumu belirlenemezse arama artık engellenmez.
 
