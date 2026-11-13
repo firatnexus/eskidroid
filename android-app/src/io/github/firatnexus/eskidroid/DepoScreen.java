@@ -48,8 +48,7 @@ public final class DepoScreen {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Ui.CANVAS);
 
-        TextView title = Ui.text(main, L.s(R.string.tab_library), Ui.INK, 22, 2);
-        title.setLetterSpacing(-0.02f);
+        TextView title = Ui.bigTitle(main, L.s(R.string.tab_library));
         LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(-2, -2);
         tlp.setMargins(Ui.dp(20), Ui.dp(16), Ui.dp(20), 0);
         title.setLayoutParams(tlp);
@@ -105,6 +104,21 @@ public final class DepoScreen {
         });
         box.addView(query);
         root.addView(box);
+
+        // Cihazdan APK ekle (mağaza GET tarzı birincil buton)
+        TextView importBtn = Ui.primaryButton(main, L.s(R.string.import_apk));
+        UiFx.press(importBtn);
+        importBtn.setOnClickListener(v -> {
+            UiFx.tap(main);
+            main.pickLocalApk();
+        });
+        LinearLayout.LayoutParams iblp = new LinearLayout.LayoutParams(-1, -2);
+        iblp.setMargins(Ui.dp(16), Ui.dp(4), Ui.dp(16), Ui.dp(4));
+        importBtn.setLayoutParams(iblp);
+        root.addView(importBtn);
+        TextView importHint = Ui.text(main, L.s(R.string.import_apk_desc), Ui.FOG, 11, 0);
+        importHint.setPadding(Ui.dp(20), 0, Ui.dp(20), Ui.dp(6));
+        root.addView(importHint);
 
         // Filtre çipleri + temizle
         HorizontalScrollView hs = new HorizontalScrollView(main);

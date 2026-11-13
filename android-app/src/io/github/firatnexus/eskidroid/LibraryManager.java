@@ -45,7 +45,7 @@ import java.util.zip.ZipFile;
  */
 public final class LibraryManager {
 
-    public static final String PATCHER_VERSION = "1.2";
+    public static final String PATCHER_VERSION = "1.5";
 
     public static final String COMPAT_AUTO = "auto";
     public static final String COMPAT_HIGH = "high";
@@ -93,7 +93,10 @@ public final class LibraryManager {
         }
 
         public String sourceLabel() {
-            return "fdroid".equals(source) ? "F-Droid" : "archive.org";
+            if ("fdroid".equals(source)) return "F-Droid";
+            if ("github".equals(source)) return "GitHub";
+            if ("local".equals(source)) return L.s(R.string.local_source);
+            return "archive.org";
         }
     }
 
@@ -316,12 +319,18 @@ public final class LibraryManager {
         File part = new File(folder, "original.apk.part");
         stage(key, "download", 0, L.s(R.string.step_download));
 
+        // Güvenlik: indirme yalnızca HTTPS üzerinden yapılır (şema doğrulaması)
+        URL url = new URL(v.url);
+        if (!"https".equalsIgnoreCase(url.getProtocol())) {
+            throw new Exception("Insecure URL blocked: " + url.getProtocol());
+        }
+
         long doneBytes = part.exists() ? part.length() : 0;
-        HttpURLConnection c = (HttpURLConnection) new URL(v.url).openConnection();
+        HttpURLConnection c = (HttpURLConnection) url.openConnection();
         c.setInstanceFollowRedirects(true);
         c.setConnectTimeout(15000);
         c.setReadTimeout(30000);
-        c.setRequestProperty("User-Agent", "EskiDroid/1.2 (Android)");
+        c.setRequestProperty("User-Agent", "EskiDroid/1.5 (Android)");
         if (doneBytes > 0) c.setRequestProperty("Range", "bytes=" + doneBytes + "-");
         synchronized (lock) {
             conns.put(key, c);
@@ -651,6 +660,79 @@ public final class LibraryManager {
         in.close();
         os.close();
         return out;
+    }
+
+    // ============================ yerel APK içe aktarma ============================
+
+    /**
+     * Cihazdan seçilen APK'yı Depo'ya ekler (kaynak "local"): orijinal dosya
+     * original.apk olarak kopyalanır, paket adı/sürüm/hedef SDK okunur ve
+     * normal indirme akışındaki gibi yamalanıp kurulabilir hale gelir.
+     * Aynı paket+sürüm zaten varsa üzerine yazılır (güncelleme).
+     */
+    public Meta importLocal(final File srcApk, final JobListener listener) {
+        final String key = "import/" + System.currentTimeMillis();
+        synchronized (lock) {
+            List<JobListener> ls = new ArrayList<>();
+            ls.add(listener);
+            listeners.put(key, ls);
+        }
+        io.execute(() -> {
+            try {
+                stage(key, "download", -1, L.s(R.string.importing));
+                PackageInfo pi = apkInfo(appCtx, srcApk);
+                if (pi == null || pi.applicationInfo == null) {
+                    throw new Exception(L.s(R.string.import_not_apk));
+                }
+                String pkg = pi.packageName;
+                String ver = pi.versionName == null || pi.versionName.isEmpty()
+                        ? String.valueOf(pi.versionCode == 0 ? System.currentTimeMillis() : pi.versionCode)
+                        : pi.versionName;
+                File folder = dirFor(pkg, ver);
+                if (!folder.exists() && !folder.mkdirs()) throw new Exception(L.s(R.string.mkdir_failed));
+                File orig = new File(folder, "original.apk");
+                File part = new File(folder, "original.apk.part");
+                copyFile(srcApk, part);
+                if (!part.renameTo(orig)) {
+                    part.delete();
+                    throw new Exception(L.s(R.string.move_failed));
+                }
+                // Eski yamalı kopya artık geçersiz: yeni orijinale göre yeniden üretilir
+                File oldPatched = new File(folder, "patched.apk");
+                if (oldPatched.exists()) oldPatched.delete();
+
+                Meta m = new Meta();
+                m.itemId = pkg;
+                m.name = apkLabel(appCtx, orig);
+                if (m.name == null || m.name.isEmpty()) m.name = pkg;
+                m.version = ver;
+                m.source = "local";
+                m.url = null;
+                m.size = orig.length();
+                m.downloadedAt = System.currentTimeMillis();
+                m.sha256 = sha256(orig);
+                try {
+                    m.targetSdkBefore = AndroidAppPatcher.readTargetSdk(orig);
+                } catch (Exception ignored) {
+                }
+                readPkgInfo(m, orig);
+                save(m);
+                done(key, m, L.s(R.string.import_done, m.displayName()));
+            } catch (Exception e) {
+                fail(key, msg(e));
+            }
+        });
+        return null;
+    }
+
+    private static void copyFile(File src, File dst) throws Exception {
+        FileInputStream in = new FileInputStream(src);
+        FileOutputStream os = new FileOutputStream(dst);
+        byte[] buf = new byte[16384];
+        int n;
+        while ((n = in.read(buf)) > 0) os.write(buf, 0, n);
+        in.close();
+        os.close();
     }
 
     // ============================ APK incelemesi ============================

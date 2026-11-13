@@ -3,7 +3,7 @@
 <resources>
     <string name="abi_warn">Приложение может быть несовместимо с архитектурой устройства (lib: %1$s, устройство: %2$s)</string>
     <string name="about">О программе</string>
-    <string name="about_text">EskiDroid v1.4
+    <string name="about_text">EskiDroid v1.5
 Ищет и скачивает старые Android-приложения; при необходимости повышает целевой SDK, переподписывает сгенерированным ключом и устанавливает.
 Ключ подписи создаётся и хранится на этом устройстве.</string>
     <string name="animations">Анимации</string>
@@ -160,4 +160,17 @@
     <string name="website">Сайт</string>
     <string name="will_patch_to">Будет патч → %1$d</string>
     <string name="zoom_hint">Щипок для масштаба • касание для закрытия</string>
+    <string name="pick_source">Где искать?</string>
+    <string name="pick_source_hint">Сначала выберите источник — результаты будут только оттуда.</string>
+    <string name="src_fdroid_desc">Бесплатные приложения с открытым исходным кодом</string>
+    <string name="src_archive_desc">Старые APK из веб-архива</string>
+    <string name="src_github_desc">APK из релизов GitHub</string>
+    <string name="select_source">Сначала выберите источник (F-Droid, Архив или GitHub)</string>
+    <string name="import_apk">Добавить APK с устройства</string>
+    <string name="import_apk_desc">Выберите APK-файл на устройстве: он будет добавлен в Библиотеку, готовый к патчу и установке.</string>
+    <string name="importing">Импорт APK…</string>
+    <string name="import_not_apk">Выбранный файл не является корректным APK</string>
+    <string name="import_done">Добавлено: %1$s — готово к патчу и установке</string>
+    <string name="import_failed">Не удалось импортировать</string>
+    <string name="local_source">С устройства</string>
 </resources>

@@ -27,30 +27,31 @@ import java.util.Date;
 import java.util.Locale;
 
 /**
- * Things tasarım sistemi (docs/design/DESIGN.md) — arayüz tamamen koddan
- * çizilir (XML yok). Renkler, yarıçaplar ve tipografi Things tokenlerine
- * uyar; karanlık mod aynı tokenlerden türetilmiştir. Tema değişimi
+ * App Store tarzı mağaza görünümü (v1.5): büyük başlıklar, pil butonlar
+ * ("GET" havası), beyaz zemin + ince ayraçlı kartlar, yuvarlak büyük ikonlar.
+ * Arayüz tamamen koddan çizilir (XML yok). Aydınlık/karanlık mod aynı
+ * mantıkla: aynı vurgu rengi, aynı kontrast kuralları. Tema değişimi
  * Ui.applyTheme() ile: statik alanlar güncellenir, ekranlar yeniden çizilir.
  */
 public final class Ui {
 
-    // ---- Things renk tokenleri (aydınlık varsayılan; applyTheme ile değişir) ----
-    public static int CANVAS = 0xFFF2F5F7;   // Mist — sayfa zemini
-    public static int CARD = 0xFFFFFFFF;     // Paper — kart yüzeyi
-    public static int ELEVATED = 0xFFFFFFFF; // giriş alanları (Things: beyaz)
+    // ---- mağaza renkleri (aydınlık varsayılan; applyTheme ile değişir) ----
+    public static int CANVAS = 0xFFFFFFFF;   // saf beyaz zemin (App Store)
+    public static int CARD = 0xFFFFFFFF;     // kart yüzeyi
+    public static int ELEVATED = 0xFFF2F2F7; // arama kutusu / ikincil dolgu
     public static int OVERLAY = 0x73000000;  // %45 siyah
-    public static int INK = 0xFF303336;      // ana metin
-    public static int FOG = 0xFF838B96;      // ikincil metin
-    public static int ASH = 0xFF55606E;      // üçüncül metin / ikon vuruşları
-    public static int SMOKE = 0xFF44474B;    // vurgulu gövde metni
-    public static int HAIRLINE = 0xFFDFE3E8; // kenarlıklar
-    public static int BLUE = 0xFF2576EB;     // Signal Blue — etkileşim
-    public static int SKY = 0xFF5C9CF5;      // Sky Blue — ikincil vurgu
-    // EskiDroid durum uzantıları (DESIGN.md "Durum Renkleri")
-    public static int GREEN = 0xFF1E8E5A;
-    public static int EMBER = 0xFFC77F2A;
-    public static int RED = 0xFFCC4B4B;
-    // Eski uyumluluk eski adlar (eski çağrı alanları)
+    public static int INK = 0xFF111111;      // ana metin
+    public static int FOG = 0xFF6E6E73;      // ikincil metin
+    public static int ASH = 0xFF8E8E93;      // üçüncül metin / ikon
+    public static int SMOKE = 0xFF3A3A3C;    // vurgulu gövde metni
+    public static int HAIRLINE = 0xFFE5E5EA; // ayraçlar
+    public static int BLUE = 0xFF007AFF;     // mağaza mavisi (App Store)
+    public static int SKY = 0xFF5AC8FA;      // ikincil vurgu
+    // durum renkleri
+    public static int GREEN = 0xFF34C759;
+    public static int EMBER = 0xFFFF9500;
+    public static int RED = 0xFFFF3B30;
+    // eski uyumluluk adları
     public static int WHITE = INK;
     public static int GRAPHITE = FOG;
     public static int MIST = FOG;
@@ -76,35 +77,35 @@ public final class Ui {
     public static void applyTheme(boolean d) {
         dark = d;
         if (d) {
-            CANVAS = 0xFF1A1D21;
-            CARD = 0xFF24282D;
-            ELEVATED = 0xFF1F2327;
+            CANVAS = 0xFF000000;
+            CARD = 0xFF1C1C1E;
+            ELEVATED = 0xFF1C1C1E;
             OVERLAY = 0x99000000;
-            INK = 0xFFE8EAED;
-            FOG = 0xFF9AA3AD;
-            ASH = 0xFF7C8590;
-            SMOKE = 0xFFB9C0C9;
-            HAIRLINE = 0xFF3A4048;
-            BLUE = 0xFF4F91FB;
-            SKY = 0xFF5C9CF5;
-            GREEN = 0xFF4ECB92;
-            EMBER = 0xFFF0B25F;
-            RED = 0xFFEF8080;
+            INK = 0xFFF2F2F7;
+            FOG = 0xFFAEAEB2;
+            ASH = 0xFF636366;
+            SMOKE = 0xFFC7C7CC;
+            HAIRLINE = 0xFF38383A;
+            BLUE = 0xFF0A84FF;
+            SKY = 0xFF64D2FF;
+            GREEN = 0xFF30D158;
+            EMBER = 0xFFFF9F0A;
+            RED = 0xFFFF453A;
         } else {
-            CANVAS = 0xFFF2F5F7;
+            CANVAS = 0xFFFFFFFF;
             CARD = 0xFFFFFFFF;
-            ELEVATED = 0xFFFFFFFF;
+            ELEVATED = 0xFFF2F2F7;
             OVERLAY = 0x73000000;
-            INK = 0xFF303336;
-            FOG = 0xFF838B96;
-            ASH = 0xFF55606E;
-            SMOKE = 0xFF44474B;
-            HAIRLINE = 0xFFDFE3E8;
-            BLUE = 0xFF2576EB;
-            SKY = 0xFF5C9CF5;
-            GREEN = 0xFF1E8E5A;
-            EMBER = 0xFFC77F2A;
-            RED = 0xFFCC4B4B;
+            INK = 0xFF111111;
+            FOG = 0xFF6E6E73;
+            ASH = 0xFF8E8E93;
+            SMOKE = 0xFF3A3A3C;
+            HAIRLINE = 0xFFE5E5EA;
+            BLUE = 0xFF007AFF;
+            SKY = 0xFF5AC8FA;
+            GREEN = 0xFF34C759;
+            EMBER = 0xFFFF9500;
+            RED = 0xFFFF3B30;
         }
         WHITE = INK;
         GRAPHITE = FOG;
@@ -120,33 +121,44 @@ public final class Ui {
         return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, metrics);
     }
 
-    /** Things tipografi ölçeği: caption 13, body 15, subheading 18, heading-sm 20, heading 24, display 36. */
     public static TextView text(Context c, String s, int color, float sp, int style) {
         TextView t = new TextView(c);
         t.setText(s);
         t.setTextColor(color);
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
-        t.setLineSpacing(0, sp >= 17 ? 1.25f : 1.15f);
+        t.setLineSpacing(0, sp >= 17 ? 1.25f : 1.2f);
         if (style == 2) t.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
         else if (style == 1) t.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         return t;
     }
 
-    /** Things kartı: Paper yüzey, 18dp köşe, katmanlı gölge (hairline yerine shadow kenarı). */
+    /** Mağaza büyük başlığı (App Store "Büyük Başlık": 30sp kalın). */
+    public static TextView bigTitle(Context c, String s) {
+        TextView t = text(c, s, INK, 30, 2);
+        t.setLetterSpacing(-0.02f);
+        return t;
+    }
+
+    /** Bölüm başlığı: 20sp kalın (App Store bölüm başlığı). */
+    public static TextView sectionTitle(Context c, String s) {
+        return text(c, s, INK, 20, 2);
+    }
+
+    /** Mağaza kartı: 16dp köşe, hairline kenarlık, hafif gölge. */
     public static LinearLayout card(Context c) {
         LinearLayout l = new LinearLayout(c);
         l.setOrientation(LinearLayout.VERTICAL);
         GradientDrawable g = new GradientDrawable();
         g.setColor(CARD);
-        g.setCornerRadius(dp(18));
+        g.setCornerRadius(dp(16));
+        g.setStroke(Math.max(1, dp(1)), HAIRLINE);
         l.setBackground(g);
-        l.setPadding(dp(16), dp(16), dp(16), dp(16));
-        // Things gölgesi: ambient + contact
-        l.setElevation(dp(4));
+        l.setPadding(dp(16), dp(14), dp(16), dp(14));
+        l.setElevation(dp(2));
         l.setOutlineProvider(new ViewOutlineProvider() {
             @Override
             public void getOutline(View view, Outline outline) {
-                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), dp(18));
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), dp(16));
             }
         });
         l.setClipToOutline(false);
@@ -165,16 +177,16 @@ public final class Ui {
         return l;
     }
 
-    /** Buton: Things --radius-buttons 6dp. bg=TRANSPARENT + kenarlık → ghost. */
+    /** Pil buton: mağaza "GET" stili — 99dp köşe, 36dp yükseklik. */
     public static TextView button(Context c, String label, int bg, int fg, int border) {
         TextView t = text(c, label, fg, 14, 1);
         t.setGravity(Gravity.CENTER);
-        t.setPadding(dp(18), 0, dp(18), 0);
-        t.setMinHeight(dp(40));
-        t.setMinWidth(dp(64));
+        t.setPadding(dp(20), 0, dp(20), 0);
+        t.setMinHeight(dp(36));
+        t.setMinWidth(dp(72));
         GradientDrawable g = new GradientDrawable();
         g.setColor(bg);
-        g.setCornerRadius(dp(6));
+        g.setCornerRadius(dp(99));
         if (border != 0) g.setStroke(Math.max(1, dp(1)), border);
         t.setBackground(g);
         t.setClickable(true);
@@ -182,17 +194,17 @@ public final class Ui {
         return t;
     }
 
-    /** Birincil eylem: Signal Blue dolgu, beyaz metin (accent surface). */
+    /** GET butonu: mavi dolgu, beyaz metin. */
     public static TextView primaryButton(Context c, String label) {
-        return button(c, label, BLUE, dark ? 0xFF10131A : 0xFFFFFFFF, 0);
+        return button(c, label, BLUE, dark ? 0xFFFFFFFF : 0xFFFFFFFF, 0);
     }
 
-    /** Ghost buton: hairline kenarlık, Ink metin. */
+    /** İkincil buton: gri dolgu (iOS "secondary"), Ink metin. */
     public static TextView ghostButton(Context c, String label) {
-        return button(c, label, 0x00000000, INK, HAIRLINE);
+        return button(c, label, ELEVATED, INK, 0);
     }
 
-    /** Tehlike eylemi: kırmızı kenarlıklı ghost. */
+    /** Tehlike eylemi: kırmızı kenarlıklı. */
     public static TextView dangerButton(Context c, String label) {
         return button(c, label, 0x00000000, RED, RED);
     }
@@ -202,30 +214,41 @@ public final class Ui {
         TextView t = button(c, label, bg, fg, border);
         GradientDrawable g = (GradientDrawable) t.getBackground();
         Drawable mask = new GradientDrawable();
-        ((GradientDrawable) mask).setCornerRadius(dp(6));
+        ((GradientDrawable) mask).setCornerRadius(dp(99));
         ((GradientDrawable) mask).setColor(0xFFFFFFFF);
         RippleDrawable rd = new RippleDrawable(
-                ColorStateList.valueOf(dark ? 0x33FFFFFF : 0x1F2576EB), g, mask);
+                ColorStateList.valueOf(dark ? 0x33FFFFFF : 0x1F007AFF), g, mask);
         t.setBackground(rd);
         return t;
     }
 
     public static TextView primaryPill(Context c, String label) {
-        return rippleButton(c, label, BLUE, dark ? 0xFF10131A : 0xFFFFFFFF, 0);
+        return rippleButton(c, label, BLUE, 0xFFFFFFFF, 0);
     }
 
     public static TextView ghostPill(Context c, String label) {
-        return rippleButton(c, label, 0x00000000, INK, HAIRLINE);
+        return rippleButton(c, label, ELEVATED, INK, 0);
     }
 
-    /** Küçük rozet: 6dp köşe, ince kenarlık (kaynak, sürüm, durum). */
+    /** Rozet: pil biçimli, ince kenarlık (kaynak, sürüm, durum). */
     public static TextView badge(Context c, String label, int fg, int border) {
         TextView t = text(c, label, fg, 10, 1);
-        t.setPadding(dp(8), dp(2), dp(8), dp(3));
+        t.setPadding(dp(9), dp(2), dp(9), dp(3));
         GradientDrawable g = new GradientDrawable();
         g.setColor(0x00000000);
-        g.setCornerRadius(dp(6));
+        g.setCornerRadius(dp(99));
         g.setStroke(Math.max(1, dp(1)), border);
+        t.setBackground(g);
+        return t;
+    }
+
+    /** Dolgulu rozet: renk %12 arka plan + renkli metin (mağaza kategorisi). */
+    public static TextView badgeFill(Context c, String label, int color) {
+        TextView t = text(c, label, color, 10, 1);
+        t.setPadding(dp(9), dp(2), dp(9), dp(3));
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(tint(color, dark ? 0x26 : 0x1A));
+        g.setCornerRadius(dp(99));
         t.setBackground(g);
         return t;
     }
@@ -234,7 +257,7 @@ public final class Ui {
         return badge(c, label, fg, border);
     }
 
-    /** Metin bağlantısı: Signal Blue, alt çizgi yok (Things ilkesi). */
+    /** Metin bağlantısı: mağaza mavisi, alt çizgi yok. */
     public static TextView link(Context c, String label) {
         TextView t = text(c, label, BLUE, 14, 1);
         t.setPadding(0, dp(8), 0, dp(8));
@@ -251,7 +274,7 @@ public final class Ui {
 
     private static Drawable progressDrawable() {
         GradientDrawable track = new GradientDrawable();
-        track.setColor(dark ? 0xFF3A4048 : 0xFFDFE3E8);
+        track.setColor(dark ? 0xFF2C2C2E : 0xFFE5E5EA);
         track.setCornerRadius(dp(99));
         GradientDrawable fill = new GradientDrawable();
         fill.setColor(BLUE);
@@ -293,14 +316,14 @@ public final class Ui {
         return row;
     }
 
-    /** Harf avatarı (görsel yüklenemezse) — Things serin tonu. */
+    /** Harf avatarı (görsel yüklenemezse). */
     public static Bitmap letterAvatar(String hint, int px) {
         Bitmap b = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888);
         Canvas cv = new Canvas(b);
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        p.setColor(dark ? 0xFF2E333A : 0xFFDFE3E8);
-        cv.drawRoundRect(0, 0, px, px, px * 0.22f, px * 0.22f, p);
-        p.setColor(dark ? 0xFF9AA3AD : 0xFF55606E);
+        p.setColor(dark ? 0xFF2C2C2E : 0xFFE5E5EA);
+        cv.drawRoundRect(0, 0, px, px, px * 0.24f, px * 0.24f, p);
+        p.setColor(dark ? 0xFFAEAEB2 : 0xFF8E8E93);
         p.setTextSize(px * 0.42f);
         p.setTextAlign(Paint.Align.CENTER);
         p.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
@@ -310,7 +333,7 @@ public final class Ui {
         return b;
     }
 
-    /** Yuvarlatılmış köşeli ikon (Things: 3px radius → 12dp mobilde). */
+    /** Mağaza ikonu: yuvarlatılmış köşe (App Store ~%22). */
     public static ImageView appIcon(Context c, int sizeDp) {
         ImageView iv = new ImageView(c);
         iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -330,7 +353,7 @@ public final class Ui {
         return appIcon(c, sizeDp);
     }
 
-    /** Ekran görüntüleri: 18dp köşe (Things kart yarıçapı). */
+    /** Ekran görüntüleri: 12dp köşe. */
     public static ImageView roundedImage(Context c, int wDp, int hDp, int radiusDp) {
         ImageView iv = new ImageView(c);
         iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -350,7 +373,7 @@ public final class Ui {
     public static View skeleton(Context c, int hDp) {
         View v = new View(c);
         GradientDrawable g = new GradientDrawable();
-        g.setColor(dark ? 0xFF24282D : 0xFFE7EBEF);
+        g.setColor(dark ? 0xFF1C1C1E : 0xFFEFEFF4);
         g.setCornerRadius(dp(12));
         v.setBackground(g);
         v.setLayoutParams(new LinearLayout.LayoutParams(-1, dp(hDp)));
@@ -370,5 +393,11 @@ public final class Ui {
         if (millis <= 0) return "";
         Locale loc = L.ctx().getResources().getConfiguration().getLocales().get(0);
         return new SimpleDateFormat("dd.MM.yyyy", loc).format(new Date(millis));
+    }
+
+    /** Rengin saydam tonu: tint(mavi, 0x1F) → %12 mavi dolgu. */
+    public static int tint(int color, int alpha) {
+        int r = (color >> 16) & 0xFF, g = (color >> 8) & 0xFF, b = color & 0xFF;
+        return (alpha << 24) | (r << 16) | (g << 8) | b;
     }
 }

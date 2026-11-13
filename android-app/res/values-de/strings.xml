@@ -3,7 +3,7 @@
 <resources>
     <string name="abi_warn">Diese App ist möglicherweise inkompatibel mit deiner Gerätearchitektur (lib: %1$s, Gerät: %2$s)</string>
     <string name="about">Über</string>
-    <string name="about_text">EskiDroid v1.4
+    <string name="about_text">EskiDroid v1.5
 Sucht und lädt alte Android-Apps; erhöht bei Bedarf das Ziel-SDK, signiert mit einem selbst erzeugten Schlüssel neu und installiert.
 Der Signaturschlüssel wird auf diesem Gerät erzeugt und gespeichert.</string>
     <string name="animations">Animationen</string>
@@ -160,4 +160,17 @@ Ergebnisse kommen von F-Droid, archive.org und GitHub.</string>
     <string name="website">Webseite</string>
     <string name="will_patch_to">Wird gepatcht → %1$d</string>
     <string name="zoom_hint">Zum Zoomen zusammenziehen • zum Schließen tippen</string>
+    <string name="pick_source">Wo möchtest du suchen?</string>
+    <string name="pick_source_hint">Wähle zuerst eine Quelle — Ergebnisse stammen nur von dort.</string>
+    <string name="src_fdroid_desc">Kostenlose Open-Source-Android-Apps</string>
+    <string name="src_archive_desc">Alte APKs aus dem Webarchiv</string>
+    <string name="src_github_desc">APKs aus GitHub-Releases</string>
+    <string name="select_source">Wähle zuerst eine Quelle (F-Droid, Archiv oder GitHub)</string>
+    <string name="import_apk">APK vom Gerät hinzufügen</string>
+    <string name="import_apk_desc">Wähle eine APK-Datei auf deinem Gerät: sie wird zur Bibliothek hinzugefügt und kann gepatcht und installiert werden.</string>
+    <string name="importing">APK wird importiert…</string>
+    <string name="import_not_apk">Ausgewählte Datei ist keine gültige APK</string>
+    <string name="import_done">Hinzugefügt: %1$s — bereit zum Patchen und Installieren</string>
+    <string name="import_failed">Import fehlgeschlagen</string>
+    <string name="local_source">Vom Gerät</string>
 </resources>

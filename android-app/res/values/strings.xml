@@ -3,7 +3,7 @@
 <resources>
     <string name="abi_warn">Bu uygulama cihazının mimarisiyle uyumsuz olabilir (lib: %1$s, cihaz: %2$s)</string>
     <string name="about">Hakkında</string>
-    <string name="about_text">EskiDroid v1.4
+    <string name="about_text">EskiDroid v1.5
 Eski Android uygulamalarını arar, indirir; gerekirse hedef SDK\'yı yükseltip kendinden imzalı anahtarla yeniden imzalar ve kurar.
 İmza anahtarı bu cihazda üretilir ve saklanır.</string>
     <string name="animations">Animasyonlar</string>
@@ -160,4 +160,17 @@ Sonuçlar F-Droid, archive.org ve GitHub\'tan gelir.</string>
     <string name="website">Web sitesi</string>
     <string name="will_patch_to">Yamalanacak → %1$d</string>
     <string name="zoom_hint">Yakınlaştırmak için iki parmakla kıstır • kapatmak için dokun</string>
+    <string name="pick_source">Nereden aramak istersin?</string>
+    <string name="pick_source_hint">Önce bir kaynak seç — sonuçlar yalnız oradan gelir.</string>
+    <string name="src_fdroid_desc">Ücretsiz ve açık kaynak Android uygulamaları</string>
+    <string name="src_archive_desc">Web arşivinden eski APK\'lar</string>
+    <string name="src_github_desc">GitHub sürümlerinden APK\'lar</string>
+    <string name="select_source">Önce bir kaynak seç (F-Droid, Arşiv veya GitHub)</string>
+    <string name="import_apk">Cihazdan APK ekle</string>
+    <string name="import_apk_desc">Cihazındaki APK dosyasını seç: Depo\'ya eklenir, yamalanıp kurulabilir.</string>
+    <string name="importing">APK içe aktarılıyor…</string>
+    <string name="import_not_apk">Seçilen dosya geçerli bir APK değil</string>
+    <string name="import_done">Eklendi: %1$s — artık yamalanıp kurulabilir</string>
+    <string name="import_failed">İçe aktarma başarısız</string>
+    <string name="local_source">Cihazdan</string>
 </resources>

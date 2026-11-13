@@ -4,8 +4,6 @@ import android.graphics.Bitmap;
 import android.os.Build;
 import android.text.TextUtils;
 import android.view.Gravity;
-import android.view.MotionEvent;
-import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
@@ -21,14 +19,13 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
- * Uygulama detay sayfası: başlık (ikon, ad, paket, kaynak rozetleri, özet),
+ * Uygulama detay sayfası — mağaza havası (App Store/Play Store):
+ * büyük ikon + kalın ad + kaynak satırı, GET tarzı büyük indirme butonu,
  * ekran görüntüleri (tam ekran + yakınlaştırma), açıklama (devamını oku),
- * bilgi bölümü, sürümler (minSdk/targetSdk/ABI/izin sayısı; Önerilen/Depoda),
- * izinler (açılır), anti-features ve değişiklik notları.
+ * bilgi bölümü, sürümler, izinler, anti-features ve değişiklik notları.
  * Veri yoksa bölüm hiç çizilmez. Eski akış korunur: indir → yamala → kur.
  */
 public final class DetailScreen {
@@ -287,7 +284,7 @@ public final class DetailScreen {
         UiFx.stagger(main, cards);
     }
 
-    /** Üst kart: ikon, ad, paket adı, kaynak rozetleri, özet. */
+    /** Mağaza başlığı: büyük ikon, kalın ad, paket adı, rozetler, özet. */
     private View headerCard() {
         LinearLayout card = Ui.card(main);
 
@@ -295,9 +292,9 @@ public final class DetailScreen {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
 
-        ImageView icon = Ui.appIcon(main, 56);
+        ImageView icon = Ui.appIcon(main, 64);
         icon.setContentDescription(item.name);
-        ImageLoader.get(main).load(item.iconUrl, 56, icon, item.name);
+        ImageLoader.get(main).load(item.iconUrl, 64, icon, item.name);
         row.addView(icon);
 
         LinearLayout mid = new LinearLayout(main);
@@ -305,7 +302,7 @@ public final class DetailScreen {
         mid.setPadding(Ui.dp(14), 0, Ui.dp(8), 0);
         mid.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
 
-        TextView name = Ui.text(main, item.name, Ui.INK, 18, 1);
+        TextView name = Ui.text(main, item.name, Ui.INK, 20, 2);
         name.setSingleLine(true);
         name.setEllipsize(TextUtils.TruncateAt.END);
         mid.addView(name);
@@ -319,12 +316,12 @@ public final class DetailScreen {
         badges.setOrientation(LinearLayout.HORIZONTAL);
         badges.setPadding(0, Ui.dp(6), 0, 0);
         for (String src : new String[]{item.source}) {
-            badges.addView(margin(Ui.badge(main, SearchItem.sourceLabel(src), Ui.BLUE, Ui.BLUE), 0, 0, 6, 0));
+            badges.addView(margin(Ui.badgeFill(main, SearchItem.sourceLabel(src), Ui.BLUE), 0, 0, 6, 0));
         }
         if (item.downloads > 0) {
-            badges.addView(Ui.badge(main, L.s(R.string.downloads_count, L.num(item.downloads)), Ui.FOG, Ui.HAIRLINE));
+            badges.addView(Ui.badgeFill(main, L.s(R.string.downloads_count, L.num(item.downloads)), Ui.FOG));
         } else if (item.stars >= 0) {
-            badges.addView(Ui.badge(main, "★ " + L.num(item.stars), Ui.EMBER, Ui.EMBER));
+            badges.addView(Ui.badgeFill(main, "★ " + L.num(item.stars), Ui.EMBER));
         }
         mid.addView(badges);
         row.addView(mid);
@@ -354,7 +351,7 @@ public final class DetailScreen {
     /** Açıklama: tam metin, "devamını oku" ile açılıp kapanır. */
     private View descriptionCard(final String desc) {
         LinearLayout card = Ui.card(main);
-        card.addView(Ui.text(main, L.s(R.string.description), Ui.INK, 15, 1));
+        card.addView(Ui.sectionTitle(main, L.s(R.string.description)));
         final TextView body = Ui.text(main, desc, Ui.SMOKE, 14, 0);
         body.setPadding(0, Ui.dp(8), 0, 0);
         body.setMaxLines(5);
@@ -482,13 +479,13 @@ public final class DetailScreen {
         LinearLayout row = new LinearLayout(main);
         row.setOrientation(LinearLayout.HORIZONTAL);
         for (final String url : screenshots) {
-            ImageView iv = Ui.roundedImage(main, 96, 160, 18);
+            ImageView iv = Ui.roundedImage(main, 108, 180, 12);
             iv.setContentDescription(L.s(R.string.screenshot));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(96), Ui.dp(160));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(108), Ui.dp(180));
             lp.rightMargin = Ui.dp(8);
             iv.setLayoutParams(lp);
-            ImageLoader.get(main).load(url, 320, iv, item.name);
-            iv.setOnClickListener(v -> main.showFullscreenImage(url, item.name));
+            ImageLoader.get(main).load(url, 360, iv, item.name);
+            iv.setOnClickListener(v -> main.showFullscreenImage(screenshots, screenshots.indexOf(url), item.name));
             row.addView(iv);
         }
         return row;
@@ -526,7 +523,7 @@ public final class DetailScreen {
         LinearLayout head = new LinearLayout(main);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
-        head.addView(Ui.text(main, L.s(R.string.permissions), Ui.INK, 15, 1));
+        head.addView(Ui.sectionTitle(main, L.s(R.string.permissions)));
         TextView n = Ui.text(main, " (" + perms.size() + ")", Ui.FOG, 13, 0);
         head.addView(n);
         card.addView(head);
@@ -575,7 +572,7 @@ public final class DetailScreen {
         }
         if (text == null) return null;
         LinearLayout card = Ui.card(main);
-        card.addView(Ui.text(main, L.s(R.string.changelog), Ui.INK, 15, 1));
+        card.addView(Ui.sectionTitle(main, L.s(R.string.changelog)));
         TextView body = Ui.text(main, text, Ui.SMOKE, 13, 0);
         body.setPadding(0, Ui.dp(8), 0, 0);
         card.addView(body);
@@ -600,13 +597,13 @@ public final class DetailScreen {
         }
 
         if (v.recommended) {
-            row1.addView(margin(Ui.badge(main, L.s(R.string.recommended), Ui.GREEN, Ui.GREEN), 8, 0, 0, 0));
+            row1.addView(margin(Ui.badgeFill(main, L.s(R.string.recommended), Ui.GREEN), 8, 0, 0, 0));
         }
         if (m != null) {
-            row1.addView(margin(Ui.badge(main, L.s(R.string.in_library), Ui.BLUE, Ui.BLUE), 8, 0, 0, 0));
+            row1.addView(margin(Ui.badgeFill(main, L.s(R.string.in_library), Ui.BLUE), 8, 0, 0, 0));
         }
         if (m != null && lib.patchNeeded(m)) {
-            row1.addView(margin(Ui.badge(main, L.s(R.string.will_patch_to, lib.patchTarget()), Ui.GREEN, Ui.GREEN), 8, 0, 0, 0));
+            row1.addView(margin(Ui.badgeFill(main, L.s(R.string.will_patch_to, lib.patchTarget()), Ui.GREEN), 8, 0, 0, 0));
         }
         card.addView(row1);
 
@@ -641,11 +638,11 @@ public final class DetailScreen {
             LinearLayout pills = new LinearLayout(main);
             pills.setOrientation(LinearLayout.HORIZONTAL);
             pills.setPadding(0, Ui.dp(6), 0, 0);
-            pills.addView(margin(Ui.badge(main, L.s(R.string.downloaded), Ui.FOG, Ui.HAIRLINE), 0, 0, 6, 0));
+            pills.addView(margin(Ui.badgeFill(main, L.s(R.string.downloaded), Ui.FOG), 0, 0, 6, 0));
             if (m.patched) {
-                pills.addView(margin(Ui.badge(main, L.s(R.string.patched), Ui.GREEN, Ui.GREEN), 0, 0, 6, 0));
+                pills.addView(margin(Ui.badgeFill(main, L.s(R.string.patched), Ui.GREEN), 0, 0, 6, 0));
             }
-            if (installed) pills.addView(Ui.badge(main, L.s(R.string.installed), Ui.GREEN, Ui.GREEN));
+            if (installed) pills.addView(Ui.badgeFill(main, L.s(R.string.installed), Ui.GREEN));
             card.addView(pills);
         }
 
@@ -657,17 +654,18 @@ public final class DetailScreen {
                 na.setPadding(0, Ui.dp(8), 0, 0);
                 card.addView(na);
             } else {
-                TextView dl = Ui.primaryButton(main, L.s(R.string.download));
+                // GET tarzı indirme butonu (mağaza görünümü)
+                TextView dl = Ui.primaryButton(main, L.s(R.string.download).toUpperCase(java.util.Locale.ROOT));
                 UiFx.press(dl);
                 dl.setOnClickListener(x -> {
                     UiFx.tap(main);
                     if (main.ensurePermissions())
                         LibraryManager.get(main).download(item, v, listener(v));
                 });
-                card.addView(margin(dl, 0, 8, 0, 0));
+                card.addView(margin(dl, 0, 10, 0, 0));
             }
         } else {
-            card.addView(margin(actions(m, lib), 0, 8, 0, 0));
+            card.addView(margin(actions(m, lib), 0, 10, 0, 0));
             if (installed) {
                 LinearLayout ex = new LinearLayout(main);
                 ex.setOrientation(LinearLayout.HORIZONTAL);
@@ -816,8 +814,8 @@ public final class DetailScreen {
     private View section(String title, View content) {
         LinearLayout box = new LinearLayout(main);
         box.setOrientation(LinearLayout.VERTICAL);
-        TextView t = Ui.text(main, title, Ui.INK, 14, 1);
-        t.setPadding(Ui.dp(4), Ui.dp(8), Ui.dp(4), Ui.dp(8));
+        TextView t = Ui.sectionTitle(main, title);
+        t.setPadding(Ui.dp(4), Ui.dp(12), Ui.dp(4), Ui.dp(8));
         box.addView(t);
         if (content != null) box.addView(content);
         return box;

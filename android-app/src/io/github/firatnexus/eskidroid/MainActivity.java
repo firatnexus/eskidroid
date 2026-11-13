@@ -11,7 +11,6 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Matrix;
-import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -20,6 +19,8 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -27,15 +28,19 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * EskiDroid — kabuk: ekranlar (Ara / Depo / Ayarlar), alt dock,
- * detay sayfası, kurulum onay kutusu, tam ekran görsel görüntüleyici,
- * tema (Things: Sistem/Aydınlık/Karanlık) ve dil (5 dil) yönetimi.
+ * EskiDroid — kabuk: ekranlar (Ara / Depo / Ayarlar), mağaza tarzı alt sekme
+ * çubuğu, detay sayfası, kurulum onay kutusu, Play Store tarzı tam ekran
+ * ekran görüntüsü görüntüleyicisi (sayfalama + yakınlaştırma), cihazdan APK
+ * içe aktarma, tema (Aydınlık/Karanlık) ve dil (5 dil) yönetimi.
  * Yamalama/imzalama/kurulum mantığı AndroidAppPatcher, ApkSignerUtil ve
  * EskiDroidProvider'dan yalnızca ÇAĞRILIR; bunlar değiştirilmez.
  */
@@ -43,9 +48,10 @@ public class MainActivity extends Activity {
 
     public static final String CHANNEL_ID = "eskidroid_dl";
     private static final int NOTIF_ID = 1;
+    private static final int REQ_IMPORT_APK = 41;
 
     private FrameLayout content;
-    private LinearLayout dockWrap;
+    private LinearLayout tabBar;
     private FrameLayout overlayHost;
     private SearchScreen searchScreen;
     private DepoScreen depoScreen;
@@ -53,7 +59,8 @@ public class MainActivity extends Activity {
     private DetailScreen detailScreen;
     private String tab = "ara";
     private View currentOverlay;
-    private final Map<String, View[]> dockViews = new HashMap<>();
+    private List<String> viewerPages;
+    private final Map<String, View[]> tabViews = new HashMap<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -107,33 +114,31 @@ public class MainActivity extends Activity {
         overlayHost = new FrameLayout(this);
         root.addView(overlayHost, new FrameLayout.LayoutParams(-1, -1));
 
-        // Alt dock: yüzen kart (Things: Paper yüzey, 18dp köşe, hairline kenarlık)
-        dockWrap = new LinearLayout(this);
+        // Mağaza tarzı alt sekme çubuğu (App Store): kenardan kenara,
+        // üstte hairline ayraç, aktif sekme mavi; yüzen kart yok.
+        LinearLayout dockWrap = new LinearLayout(this);
         dockWrap.setOrientation(LinearLayout.VERTICAL);
-        dockWrap.setGravity(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        dockWrap.setGravity(Gravity.BOTTOM);
 
-        LinearLayout dock = new LinearLayout(this);
-        dock.setOrientation(LinearLayout.HORIZONTAL);
-        dock.setGravity(Gravity.CENTER_VERTICAL);
-        dock.setPadding(Ui.dp(8), Ui.dp(8), Ui.dp(8), Ui.dp(8));
-        GradientDrawable dg = new GradientDrawable();
-        dg.setColor(Ui.CARD);
-        dg.setCornerRadius(Ui.dp(18));
-        dg.setStroke(Math.max(1, Ui.dp(1)), Ui.HAIRLINE);
-        dock.setBackground(dg);
-        dock.setElevation(Ui.dp(8));
-        LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(-2, -2);
-        dl.setMargins(Ui.dp(16), 0, Ui.dp(16), Ui.dp(16));
-        dock.setLayoutParams(dl);
+        tabBar = new LinearLayout(this);
+        tabBar.setOrientation(LinearLayout.HORIZONTAL);
+        tabBar.setGravity(Gravity.CENTER_VERTICAL);
+        tabBar.setBackgroundColor(Ui.CANVAS);
+        View topLine = new View(this);
+        topLine.setBackgroundColor(Ui.HAIRLINE);
+        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(-1, Math.max(1, Ui.dp(1)));
+        topLine.setLayoutParams(tlp);
+        dockWrap.addView(topLine);
+        dockWrap.addView(tabBar, new LinearLayout.LayoutParams(-1, Ui.dp(56)));
 
-        dock.addView(dockItem("ara", L.s(R.string.tab_search)));
-        dock.addView(dockItem("depo", L.s(R.string.tab_library)));
-        dock.addView(dockItem("ayarlar", L.s(R.string.tab_settings)));
-        dockWrap.addView(dock);
+        tabBar.addView(tabItem("ara", L.s(R.string.tab_search)));
+        tabBar.addView(tabItem("depo", L.s(R.string.tab_library)));
+        tabBar.addView(tabItem("ayarlar", L.s(R.string.tab_settings)));
         root.addView(dockWrap, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
 
         root.setOnApplyWindowInsetsListener((v, insets) -> {
             content.setPadding(0, insets.getSystemWindowInsetTop(), 0, 0);
+            overlayHost.setPadding(0, insets.getSystemWindowInsetTop(), 0, 0);
             dockWrap.setPadding(0, 0, 0, insets.getSystemWindowInsetBottom());
             return insets;
         });
@@ -142,24 +147,24 @@ public class MainActivity extends Activity {
         return root;
     }
 
-    private View dockItem(final String id, String label) {
+    private View tabItem(final String id, String label) {
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        col.setGravity(Gravity.CENTER_HORIZONTAL);
-        col.setPadding(Ui.dp(14), Ui.dp(6), Ui.dp(14), Ui.dp(6));
-        col.setMinimumWidth(Ui.dp(64));
+        col.setGravity(Gravity.CENTER);
+        col.setLayoutParams(new LinearLayout.LayoutParams(0, -1, 1f));
         ImageView iv = new ImageView(this);
         iv.setContentDescription(label);
-        LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(Ui.dp(24), Ui.dp(24));
-        ilp.gravity = Gravity.CENTER_HORIZONTAL;
+        LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(Ui.dp(26), Ui.dp(26));
+        ilp.gravity = Gravity.CENTER;
         iv.setLayoutParams(ilp);
         col.addView(iv);
-        TextView t = Ui.text(this, label, Ui.FOG, 11, 1);
+        TextView t = Ui.text(this, label, Ui.FOG, 10, 1);
         t.setGravity(Gravity.CENTER);
+        t.setPadding(0, Ui.dp(2), 0, 0);
         col.addView(t);
         col.setOnClickListener(v -> switchTab(id, true));
         UiFx.press(col);
-        dockViews.put(id, new View[]{iv, t});
+        tabViews.put(id, new View[]{iv, t});
         return col;
     }
 
@@ -173,12 +178,12 @@ public class MainActivity extends Activity {
         settingsScreen.view().setVisibility("ayarlar".equals(id) ? View.VISIBLE : View.GONE);
         if ("depo".equals(id)) depoScreen.onShow();
         if ("ayarlar".equals(id)) settingsScreen.onShow();
-        for (Map.Entry<String, View[]> e : dockViews.entrySet()) {
+        for (Map.Entry<String, View[]> e : tabViews.entrySet()) {
             boolean active = e.getKey().equals(id);
             ImageView iv = (ImageView) e.getValue()[0];
             TextView t = (TextView) e.getValue()[1];
-            t.setTextColor(active ? Ui.INK : Ui.FOG);
-            iv.setImageDrawable(dockIcon(e.getKey(), active ? Ui.BLUE : Ui.FOG));
+            t.setTextColor(active ? Ui.BLUE : Ui.FOG);
+            iv.setImageDrawable(tabIcon(e.getKey(), active ? Ui.BLUE : Ui.FOG));
             if (active && animate && UiFx.anims(this)) {
                 // Sekme geçiş animasyonu: ikon büyüyerek belirir
                 iv.setScaleX(0.7f);
@@ -192,7 +197,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    private android.graphics.drawable.Drawable dockIcon(String id, int color) {
+    private android.graphics.drawable.Drawable tabIcon(String id, int color) {
         if ("depo".equals(id)) return Icons.box(this, color);
         if ("ayarlar".equals(id)) return Icons.gear(this, color);
         return Icons.search(this, color);
@@ -272,26 +277,125 @@ public class MainActivity extends Activity {
         refreshVersions();
     }
 
-    // ============================ tam ekran görsel ============================
+    // ============================ cihazdan APK içe aktarma ============================
 
-    /** Tam ekran görsel: pinch-zoom + sürükleme; dokunarak kapanır. */
+    /** Depo ekranındaki "Cihazdan APK ekle" için sistem dosya seçiciyi açar. */
+    public void pickLocalApk() {
+        try {
+            Intent in = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            in.addCategory(Intent.CATEGORY_OPENABLE);
+            in.setType("application/vnd.android.package-archive");
+            startActivityForResult(in, REQ_IMPORT_APK);
+        } catch (Exception e) {
+            Toast.makeText(this, L.s(R.string.cannot_open), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int req, int res, Intent data) {
+        super.onActivityResult(req, res, data);
+        if (req != REQ_IMPORT_APK || res != RESULT_OK || data == null || data.getData() == null) return;
+        final Uri uri = data.getData();
+        Toast.makeText(this, L.s(R.string.importing), Toast.LENGTH_SHORT).show();
+        // Content URI önce önbelleğe kopyalanır (okuma izni kısa süreli olabilir)
+        new Thread(() -> {
+            File tmp = null;
+            try {
+                tmp = File.createTempFile("import-", ".apk", getCacheDir());
+                try (InputStream in = getContentResolver().openInputStream(uri);
+                     OutputStream os = new FileOutputStream(tmp)) {
+                    byte[] buf = new byte[16384];
+                    int n;
+                    while ((n = in.read(buf)) > 0) os.write(buf, 0, n);
+                }
+                final File f = tmp;
+                LibraryManager.get(this).importLocal(f, new LibraryManager.JobListener() {
+                    @Override
+                    public void onStage(String stage, int pct, String label) {
+                        notifyJob("EskiDroid", label, pct, false);
+                    }
+
+                    @Override
+                    public void onDone(LibraryManager.Meta meta, String message) {
+                        notifyJob("", message, 100, true);
+                        Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
+                        UiFx.done(MainActivity.this);
+                        UiFx.sndDone(MainActivity.this);
+                        depoScreen.render();
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        notifyJob("", message, 0, true);
+                        Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
+                        UiFx.err(MainActivity.this);
+                        UiFx.sndError(MainActivity.this);
+                    }
+
+                    @Override
+                    public void onInstallReady(LibraryManager.Meta meta, File apk, boolean patched) {
+                        // içe aktarmada kurulum hazırı yok
+                    }
+                });
+            } catch (final Exception e) {
+                runOnUiThread(() -> Toast.makeText(MainActivity.this,
+                        L.s(R.string.import_failed) + (e.getMessage() != null ? ": " + e.getMessage() : ""),
+                        Toast.LENGTH_LONG).show());
+            } finally {
+                // importLocal kopyalayıp bitirdikten sonra geçici dosyayı temizle
+                if (tmp != null) {
+                    final File f = tmp;
+                    new Thread(() -> {
+                        try {
+                            Thread.sleep(3000);
+                        } catch (InterruptedException ignored) {
+                        }
+                        f.delete();
+                    }).start();
+                }
+            }
+        }).start();
+    }
+
+    // ============================ tam ekran ekran görüntüleri ============================
+
+    /** Tek görsel için uyumluluk sürümü (eski çağrılar). */
     public void showFullscreenImage(String url, String name) {
-        FrameLayout ov = new FrameLayout(this);
-        ov.setBackgroundColor(0xEE000000);
+        List<String> one = new ArrayList<>();
+        one.add(url);
+        showFullscreenImage(one, 0, name);
+    }
 
+    /**
+     * Play Store tarzı tam ekran görüntüleyici: yatay kaydırma (fling) ile
+     * sayfalama, sayfa göstergesi ("2/5"), pinch-zoom + sürükleme, çift dokunuşla
+     * yakınlaştırma, sağ üstte kapatma düğmesi.
+     */
+    public void showFullscreenImage(List<String> urls, int startIndex, String name) {
+        if (urls == null || urls.isEmpty()) return;
+        final List<String> pages = urls;
+        viewerPages = pages;
+        final int[] idx = {Math.max(0, Math.min(startIndex, urls.size() - 1))};
+
+        FrameLayout ov = new FrameLayout(this);
+        ov.setBackgroundColor(0xFF000000);
+
+        FrameLayout pager = new FrameLayout(this);
         ImageView iv = new ImageView(this);
         iv.setScaleType(ImageView.ScaleType.MATRIX);
         Matrix mat = new Matrix();
         iv.setImageMatrix(mat);
-        ImageLoader.get(this).load(url, 1280, iv, name);
+        ImageLoader.get(this).load(pages.get(idx[0]), 1280, iv, name);
+        pager.addView(iv, new FrameLayout.LayoutParams(-1, -1));
 
         final float[] scale = {1f};
+        final float[] lastFocus = {0f, 0f};
         final ScaleGestureDetector sgd = new ScaleGestureDetector(this,
                 new ScaleGestureDetector.SimpleOnScaleGestureListener() {
                     @Override
                     public boolean onScale(ScaleGestureDetector d) {
                         float f = d.getScaleFactor();
-                        scale[0] = Math.max(0.5f, Math.min(6f, scale[0] * f));
+                        scale[0] = Math.max(1f, Math.min(6f, scale[0] * f));
                         mat.setScale(scale[0], scale[0],
                                 d.getFocusX(), d.getFocusY());
                         iv.setImageMatrix(mat);
@@ -307,24 +411,81 @@ public class MainActivity extends Activity {
                         iv.setImageMatrix(mat);
                         return true;
                     }
+
+                    @Override
+                    public boolean onFling(MotionEvent e1, MotionEvent e2,
+                                           float vx, float vy) {
+                        // Yakınlaştırılmışken sayfa çevirme kapalı
+                        if (scale[0] > 1.15f) return false;
+                        if (Math.abs(vx) < 1200 || Math.abs(vx) < Math.abs(vy)) return false;
+                        if (vx < 0 && idx[0] < pages.size() - 1) {
+                            showPage(ov, iv, mat, scale, idx, idx[0] + 1, name, +1);
+                        } else if (vx > 0 && idx[0] > 0) {
+                            showPage(ov, iv, mat, scale, idx, idx[0] - 1, name, -1);
+                        }
+                        return true;
+                    }
                 });
         iv.setOnTouchListener((v, e) -> {
             sgd.onTouchEvent(e);
             gd.onTouchEvent(e);
             return true;
         });
-        ov.addView(iv, new FrameLayout.LayoutParams(-1, -1));
+        ov.addView(pager, new FrameLayout.LayoutParams(-1, -1));
 
-        TextView hint = Ui.text(this, L.s(R.string.zoom_hint), 0xB3FFFFFF, 11, 0);
-        FrameLayout.LayoutParams hlp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-        hlp.bottomMargin = Ui.dp(32);
-        hint.setLayoutParams(hlp);
-        ov.addView(hint);
+        // Sayfa göstergesi: "2/5" (Play Store tarzı)
+        final TextView indicator = Ui.text(this,
+                (idx[0] + 1) + "/" + pages.size(), 0xCCFFFFFF, 13, 1);
+        FrameLayout.LayoutParams ilp = new FrameLayout.LayoutParams(-2, -2,
+                Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        ilp.bottomMargin = Ui.dp(28);
+        indicator.setLayoutParams(ilp);
+        indicator.setTag("indicator");
+        ov.addView(indicator);
 
-        ov.setOnClickListener(v -> dismissOverlay());
+        // Kapatma düğmesi (sağ üst)
+        TextView close = new TextView(this);
+        close.setText("✕");
+        close.setTextColor(0xFFFFFFFF);
+        close.setTextSize(20);
+        close.setGravity(Gravity.CENTER);
+        close.setPadding(Ui.dp(6), Ui.dp(2), Ui.dp(6), Ui.dp(2));
+        FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams(Ui.dp(44), Ui.dp(44),
+                Gravity.TOP | Gravity.END);
+        clp.topMargin = Ui.dp(16);
+        clp.rightMargin = Ui.dp(12);
+        close.setLayoutParams(clp);
+        close.setOnClickListener(v -> dismissOverlay());
+        close.setTag("indicator");
+        ov.addView(close);
+
         overlayHost.addView(ov, new FrameLayout.LayoutParams(-1, -1));
         currentOverlay = ov;
         UiFx.tap(this);
+    }
+
+    /** Görüntüleyicide sayfa değiştirir (kısa kayma animasyonu + göstergeleri günceller). */
+    private void showPage(FrameLayout ov, ImageView iv, Matrix mat, float[] scale,
+                          int[] idx, int newIdx, String name, int dir) {
+        idx[0] = newIdx;
+        scale[0] = 1f;
+        mat.reset();
+        iv.setImageMatrix(mat);
+        ImageLoader.get(this).load(viewerPages.get(newIdx), 1280, iv, name);
+        int count = viewerPages.size();
+        View ind = ov.findViewWithTag("indicator");
+        if (ind instanceof TextView) {
+            ((TextView) ind).setText((newIdx + 1) + "/" + count);
+        }
+        if (dir > 0) {
+            iv.setTranslationX(Ui.dpf(80));
+            iv.animate().translationX(0).setDuration(180)
+                    .setInterpolator(new DecelerateInterpolator()).start();
+        } else {
+            iv.setTranslationX(-Ui.dpf(80));
+            iv.animate().translationX(0).setDuration(180)
+                    .setInterpolator(new DecelerateInterpolator()).start();
+        }
     }
 
     public void openUrl(String url) {

@@ -51,14 +51,24 @@ def run(cmd, **kw):
 
 _index_cache = None
 
+def check_https(url):
+    """Güvenlik: indirme yalnızca HTTPS üzerinden yapılır."""
+    if not url.startswith("https://"):
+        sys.exit("Reddedildi (HTTPS değil): " + url)
+
+
 def load_index():
     global _index_cache
     if _index_cache is None:
         cache = os.path.join(tempfile.gettempdir(), "eskidroid-fdroid-index-v1.json")
         if not os.path.exists(cache):
             print("F-Droid dizini indiriliyor (bir kere, ~10-20 MB)...")
+            check_https(INDEX_URL)
             urllib.request.urlretrieve(INDEX_URL, cache)
-        _index_cache = json.load(open(cache, encoding="utf-8"))
+            # /tmp önbelleğini yalnızca sahibi okuyabilir (diğer kullanıcılar hayır)
+            os.chmod(cache, 0o600)
+        with open(cache, encoding="utf-8") as fh:
+            _index_cache = json.load(fh)
     return _index_cache
 
 
@@ -104,6 +114,7 @@ def cmd_download(args):
 
     fname = "%s_%s.apk" % (pkg, chosen.get("versionCode"))
     url = APK_BASE + fname
+    check_https(url)
     print("İndiriliyor:", url)
     urllib.request.urlretrieve(url, fname)
     digest = hashlib.sha256(open(fname, "rb").read()).hexdigest()
@@ -197,6 +208,7 @@ def cmd_adownload(args):
     if name not in [a[0] for a in apks]:
         sys.exit("Dosya listede yok: %s. 'aversiyon' ile listeyin." % name)
     url = "https://archive.org/download/%s/%s" % (urllib.parse.quote(args.identifier), urllib.parse.quote(name))
+    check_https(url)
     out = os.path.basename(name)
     print("İndiriliyor:", url)
     urllib.request.urlretrieve(url, out)

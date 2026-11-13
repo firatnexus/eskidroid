@@ -34,6 +34,11 @@ public class EskiDroidProvider extends ContentProvider {
         }
         String name = Uri.decode(uri.getLastPathSegment());
         File dir = getContext().getCacheDir();
+        // Yalnızca kurulum için hazırlanan "install-<etiket>.apk" dosyaları sunulur;
+        // yol geçişi (../) ve önbellekteki diğer dosyalar reddedilir.
+        if (name == null || !name.startsWith("install-") || name.contains("/") || name.contains("\\")) {
+            throw new SecurityException("Geçersiz dosya adı");
+        }
         File f = new File(dir, name);
         if (!f.getAbsoluteFile().getParentFile().equals(dir.getAbsoluteFile())) {
             throw new SecurityException("Geçersiz yol");
