@@ -53,7 +53,7 @@ public final class SettingsScreen {
         scroll.setLayoutParams(new LinearLayout.LayoutParams(-1, 0, 1f));
         root.addView(scroll);
 
-        TextView title = Ui.text(main, L.s(R.string.tab_settings), Ui.INK, 22, 2);
+        TextView title = Ui.bigTitle(main, L.s(R.string.tab_settings));
         title.setLetterSpacing(-0.02f);
         col.addView(title);
 

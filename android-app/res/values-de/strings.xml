@@ -3,7 +3,7 @@
 <resources>
     <string name="abi_warn">Diese App ist möglicherweise inkompatibel mit deiner Gerätearchitektur (lib: %1$s, Gerät: %2$s)</string>
     <string name="about">Über</string>
-    <string name="about_text">EskiDroid v1.5
+    <string name="about_text">EskiDroid v1.6
 Sucht und lädt alte Android-Apps; erhöht bei Bedarf das Ziel-SDK, signiert mit einem selbst erzeugten Schlüssel neu und installiert.
 Der Signaturschlüssel wird auf diesem Gerät erzeugt und gespeichert.</string>
     <string name="animations">Animationen</string>

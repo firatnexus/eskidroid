@@ -182,8 +182,9 @@ public class MainActivity extends Activity {
             boolean active = e.getKey().equals(id);
             ImageView iv = (ImageView) e.getValue()[0];
             TextView t = (TextView) e.getValue()[1];
-            t.setTextColor(active ? Ui.BLUE : Ui.FOG);
-            iv.setImageDrawable(tabIcon(e.getKey(), active ? Ui.BLUE : Ui.FOG));
+            // GitHub dili: aktif sekme Snow, pasif Pearl — renk cerrahi kullanılır
+            t.setTextColor(active ? Ui.INK : Ui.FOG);
+            iv.setImageDrawable(tabIcon(e.getKey(), active ? Ui.INK : Ui.FOG));
             if (active && animate && UiFx.anims(this)) {
                 // Sekme geçiş animasyonu: ikon büyüyerek belirir
                 iv.setScaleX(0.7f);

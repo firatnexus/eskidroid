@@ -3,7 +3,7 @@
 <resources>
     <string name="abi_warn">Esta app puede ser incompatible con la arquitectura de tu dispositivo (lib: %1$s, dispositivo: %2$s)</string>
     <string name="about">Acerca de</string>
-    <string name="about_text">EskiDroid v1.5
+    <string name="about_text">EskiDroid v1.6
 Busca y descarga apps antiguas de Android; si hace falta, sube el SDK objetivo, vuelve a firmar con una clave generada en el dispositivo e instala.
 La clave de firma se genera y guarda en este dispositivo.</string>
     <string name="animations">Animaciones</string>

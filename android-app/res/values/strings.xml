@@ -3,7 +3,7 @@
 <resources>
     <string name="abi_warn">Bu uygulama cihazının mimarisiyle uyumsuz olabilir (lib: %1$s, cihaz: %2$s)</string>
     <string name="about">Hakkında</string>
-    <string name="about_text">EskiDroid v1.5
+    <string name="about_text">EskiDroid v1.6
 Eski Android uygulamalarını arar, indirir; gerekirse hedef SDK\'yı yükseltip kendinden imzalı anahtarla yeniden imzalar ve kurar.
 İmza anahtarı bu cihazda üretilir ve saklanır.</string>
     <string name="animations">Animasyonlar</string>

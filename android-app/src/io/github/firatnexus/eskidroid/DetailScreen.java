@@ -479,7 +479,7 @@ public final class DetailScreen {
         LinearLayout row = new LinearLayout(main);
         row.setOrientation(LinearLayout.HORIZONTAL);
         for (final String url : screenshots) {
-            ImageView iv = Ui.roundedImage(main, 108, 180, 12);
+            ImageView iv = Ui.roundedImage(main, 108, 180, 16);
             iv.setContentDescription(L.s(R.string.screenshot));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(108), Ui.dp(180));
             lp.rightMargin = Ui.dp(8);
@@ -582,7 +582,8 @@ public final class DetailScreen {
     // ============================ sürüm kartı ============================
 
     private View versionCard(final VersionInfo v, LibraryManager lib) {
-        LinearLayout card = Ui.card(main);
+        // Önerilen sürüm: menekşe kenarlıklı featured kart (GitHub vurgu dili)
+        LinearLayout card = v.recommended ? Ui.featuredCard(main) : Ui.card(main);
 
         LibraryManager.Meta m = lib.find(item.id, v.label);
         LibraryManager.JobState st = lib.state(item.id, v.label);

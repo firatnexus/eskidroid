@@ -3,7 +3,7 @@
 <resources>
     <string name="abi_warn">This app may be incompatible with your device architecture (lib: %1$s, device: %2$s)</string>
     <string name="about">About</string>
-    <string name="about_text">EskiDroid v1.5
+    <string name="about_text">EskiDroid v1.6
 Searches and downloads old Android apps; if needed, raises the target SDK, re-signs with a self-generated key and installs.
 The signing key is generated and stored on this device.</string>
     <string name="animations">Animations</string>

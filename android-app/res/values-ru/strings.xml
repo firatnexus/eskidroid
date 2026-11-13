@@ -3,7 +3,7 @@
 <resources>
     <string name="abi_warn">Приложение может быть несовместимо с архитектурой устройства (lib: %1$s, устройство: %2$s)</string>
     <string name="about">О программе</string>
-    <string name="about_text">EskiDroid v1.5
+    <string name="about_text">EskiDroid v1.6
 Ищет и скачивает старые Android-приложения; при необходимости повышает целевой SDK, переподписывает сгенерированным ключом и устанавливает.
 Ключ подписи создаётся и хранится на этом устройстве.</string>
     <string name="animations">Анимации</string>

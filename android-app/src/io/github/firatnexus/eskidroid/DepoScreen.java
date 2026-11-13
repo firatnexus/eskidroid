@@ -67,13 +67,14 @@ public final class DepoScreen {
         stats.setPadding(Ui.dp(20), 0, Ui.dp(20), 0);
         root.addView(stats);
 
-        // Depo içi arama (küçük pil)
+        // Depo içi arama (Obsidian dolgu, 8dp köşe, hairline kenarlık)
         LinearLayout box = new LinearLayout(main);
         box.setOrientation(LinearLayout.HORIZONTAL);
         box.setGravity(Gravity.CENTER_VERTICAL);
         GradientDrawable g = new GradientDrawable();
         g.setColor(Ui.ELEVATED);
-        g.setCornerRadius(Ui.dp(99));
+        g.setCornerRadius(Ui.dp(8));
+        g.setStroke(Math.max(1, Ui.dp(1)), Ui.HAIRLINE);
         box.setBackground(g);
         box.setPadding(Ui.dp(14), Ui.dp(2), Ui.dp(8), Ui.dp(2));
         LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(-1, Ui.dp(40));
@@ -174,17 +175,12 @@ public final class DepoScreen {
     }
 
     private void addFilterChip(LinearLayout parent, String label, final String value) {
+        TextView t = Ui.text(main, label, Ui.INK, 13, 1);
+        t.setPadding(Ui.dp(16), Ui.dp(6), Ui.dp(16), Ui.dp(7));
         LinearLayout col = new LinearLayout(main);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setGravity(Gravity.CENTER_HORIZONTAL);
-        col.setPadding(Ui.dp(12), Ui.dp(6), Ui.dp(12), Ui.dp(2));
-        TextView t = Ui.text(main, label, Ui.GRAPHITE, 12, 1);
         col.addView(t);
-        View line = new View(main);
-        line.setLayoutParams(new LinearLayout.LayoutParams(-1, Ui.dp(2)));
-        line.setBackgroundColor(Ui.BLUE);
-        line.setVisibility(View.INVISIBLE);
-        col.addView(line);
         col.setOnClickListener(v -> {
             filter = value;
             updateFilterChips();
@@ -192,15 +188,25 @@ public final class DepoScreen {
         });
         parent.addView(col);
         filterLabels.add(t);
-        filterLines.add(line);
+        filterLines.add(null);
     }
 
     private void updateFilterChips() {
         String[] vals = {"all", "patched", "unpatched"};
         for (int i = 0; i < filterLabels.size(); i++) {
             boolean active = vals[i].equals(filter);
-            filterLabels.get(i).setTextColor(active ? Ui.WHITE : Ui.GRAPHITE);
-            filterLines.get(i).setVisibility(active ? View.VISIBLE : View.INVISIBLE);
+            TextView t = filterLabels.get(i);
+            GradientDrawable g = new GradientDrawable();
+            g.setCornerRadius(Ui.dp(60));
+            if (active) {
+                g.setColor(Ui.isDark() ? 0xFFFFFFFF : 0xFF24292F);
+                t.setTextColor(Ui.isDark() ? 0xFF0D1117 : 0xFFFFFFFF);
+            } else {
+                g.setColor(0x00000000);
+                g.setStroke(Math.max(1, Ui.dp(1)), Ui.PILL_BORDER);
+                t.setTextColor(Ui.INK);
+            }
+            t.setBackground(g);
         }
     }
 

@@ -56,12 +56,17 @@ public final class SearchScreen {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Ui.CANVAS);
 
-        // Büyük başlık (mağaza)
+        // Hero başlığı: menekşe radyal hale arkada (GitHub "inhabited space" havası)
+        FrameLayout hero = new FrameLayout(main);
+        View halo = new View(main);
+        halo.setBackground(Ui.halo());
+        hero.addView(halo, new FrameLayout.LayoutParams(Ui.dp(320), Ui.dp(220), Gravity.TOP | Gravity.CENTER_HORIZONTAL));
+
         TextView title = Ui.bigTitle(main, "EskiDroid");
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
         lp.setMargins(Ui.dp(20), Ui.dp(14), Ui.dp(20), 0);
         title.setLayoutParams(lp);
-        root.addView(title);
+        hero.addView(title);
 
         TextView sub = Ui.text(main, L.s(R.string.search_subtitle), Ui.FOG, 13, 0);
         sub.setSingleLine(true);
@@ -69,15 +74,17 @@ public final class SearchScreen {
         LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(-1, -2);
         lp2.setMargins(Ui.dp(20), Ui.dp(4), Ui.dp(20), Ui.dp(14));
         sub.setLayoutParams(lp2);
-        root.addView(sub);
+        hero.addView(sub);
+        root.addView(hero);
 
-        // Arama kutusu: pil (App Store arama alanı)
+        // Arama kutusu: Obsidian dolgu, 8dp köşe, Slate Edge kenarlık (giriş token'ı)
         LinearLayout box = new LinearLayout(main);
         box.setOrientation(LinearLayout.HORIZONTAL);
         box.setGravity(Gravity.CENTER_VERTICAL);
         GradientDrawable g = new GradientDrawable();
         g.setColor(Ui.ELEVATED);
-        g.setCornerRadius(Ui.dp(12));
+        g.setCornerRadius(Ui.dp(8));
+        g.setStroke(Math.max(1, Ui.dp(1)), Ui.HAIRLINE);
         box.setBackground(g);
         box.setPadding(Ui.dp(12), Ui.dp(2), Ui.dp(8), Ui.dp(2));
         LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(-1, Ui.dp(46));
@@ -274,12 +281,9 @@ public final class SearchScreen {
     }
 
     private void addChip(LinearLayout parent, String label, final String value) {
-        TextView t = Ui.text(main, label, Ui.FOG, 13, 1);
-        GradientDrawable g = new GradientDrawable();
-        g.setColor(Ui.ELEVATED);
-        g.setCornerRadius(Ui.dp(99));
-        t.setBackground(g);
+        TextView t = Ui.text(main, label, Ui.INK, 13, 1);
         t.setPadding(Ui.dp(16), Ui.dp(7), Ui.dp(16), Ui.dp(8));
+        applyChipState(t, false);
         t.setOnClickListener(v -> {
             UiFx.tap(main);
             source = value;
@@ -295,6 +299,22 @@ public final class SearchScreen {
         chipKeys.add(value);
     }
 
+    /** Pil etiket durumu: pasif = saydam + hairline kenar; aktif = dolgulu. */
+    private void applyChipState(TextView t, boolean active) {
+        GradientDrawable g = new GradientDrawable();
+        g.setCornerRadius(Ui.dp(60));
+        if (active) {
+            // GitHub aktif sekme: dolgulu yüzey (koyu temada Snow, açıkta Ink)
+            g.setColor(Ui.isDark() ? 0xFFFFFFFF : 0xFF24292F);
+            t.setTextColor(Ui.isDark() ? 0xFF0D1117 : 0xFFFFFFFF);
+        } else {
+            g.setColor(0x00000000);
+            g.setStroke(Math.max(1, Ui.dp(1)), Ui.PILL_BORDER);
+            t.setTextColor(Ui.INK);
+        }
+        t.setBackground(g);
+    }
+
     private void updateChips() {
         for (int i = 0; i < chipLabels.size(); i++) {
             String key = chipKeys.get(i);
@@ -302,11 +322,7 @@ public final class SearchScreen {
             Integer c = counts.get(key);
             String label = baseChipLabel(key);
             chipLabels.get(i).setText(active && c != null ? label + " · " + L.num(c) : label);
-            chipLabels.get(i).setTextColor(active ? 0xFFFFFFFF : Ui.FOG);
-            GradientDrawable g = new GradientDrawable();
-            g.setColor(active ? Ui.BLUE : Ui.ELEVATED);
-            g.setCornerRadius(Ui.dp(99));
-            chipLabels.get(i).setBackground(g);
+            applyChipState(chipLabels.get(i), active);
         }
     }
 
